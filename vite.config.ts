@@ -2,6 +2,6 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
-  base: "/silicon-to-singularity/",
+  base: "/silicont_to_singularity/",
   plugins: [react()],
 });
