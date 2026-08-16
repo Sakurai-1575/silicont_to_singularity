@@ -14,8 +14,10 @@ import type { SoundEvent } from "./audio";
  * public/audio/sfx/*.wav) and they'll be picked up automatically - no code
  * change needed.
  */
-const SFX_BASE = "/audio/sfx";
-const BGM_BASE = "/audio/bgm";
+const ASSET_BASE = import.meta.env.BASE_URL;
+
+const SFX_BASE = `${ASSET_BASE}audio/sfx`;
+const BGM_BASE = `${ASSET_BASE}audio/bgm`;
 
 export const SFX_PATHS: Record<SoundEvent, string> = {
   buy: `${SFX_BASE}/buy.wav`,
