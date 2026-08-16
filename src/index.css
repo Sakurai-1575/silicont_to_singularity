@@ -1,0 +1,938 @@
+@import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design system tokens (Productization Sprint 1).
+ * Every color/spacing/font used by src/components/ui/* and the game panels
+ * should come from here rather than being invented inline in a component -
+ * that's what keeps the "retro terminal / cyberpunk control room" look
+ * consistent as more screens (Enterprise, Tech Tree, AGI clear) are added
+ * later.
+ */
+:root {
+  /* Backgrounds */
+  --color-bg-void: #05070a;
+  --color-bg-panel: #0c131d;
+  --color-bg-panel-raised: #121c2a;
+  --color-bg-inset: #080d15;
+
+  /* Borders */
+  --color-border: #1f3140;
+  --color-border-bright: #2c4a5e;
+
+  /* Neon accents */
+  --neon-cyan: #3fe6e0;
+  --neon-cyan-dim: #1f8a87;
+  --neon-green: #4dff9e;
+  --neon-green-dim: #1f8a54;
+  --neon-orange: #ffab4d;
+  --neon-orange-dim: #a3651f;
+  --danger-red: #ff4d6d;
+  --danger-red-dim: #7a2333;
+  --warn-amber: #ffd23f;
+  --warn-amber-dim: #8a6c14;
+  /* Phase 2 "Real Tech Tree UI" sprint: two new accent tokens for the tree's
+     category color-coding (Cooling / Business / AGI-terminal), added the
+     same way as the neon-* tokens above rather than a new palette. */
+  --neon-aqua: #4dd6ff;
+  --neon-aqua-dim: #1f7a99;
+  --neon-violet: #b98cff;
+  --neon-violet-dim: #6c4a99;
+  /* Phase 9 "Research Expansion Foundation": 4 more accent tokens for the
+     tree's 4 new tech categories (Training/Inference Optimization, Energy,
+     Organization), same additive pattern as the Phase 2 aqua/violet pair
+     above - no existing token's value changed. */
+  --neon-yellow: #ffe066;
+  --neon-yellow-dim: #99871f;
+  --neon-magenta: #ff6ec7;
+  --neon-magenta-dim: #993d75;
+  --neon-amber2: #ff8a4d;
+  --neon-amber2-dim: #99521f;
+  --neon-blue: #4d8cff;
+  --neon-blue-dim: #1f4a99;
+
+  /* Text */
+  --text-primary: #e9f6f6;
+  --text-dim: #8ea3ae;
+  --text-muted: #5a707c;
+
+  /* Fonts */
+  --font-display: "Press Start 2P", "Share Tech Mono", monospace;
+  --font-mono: "Share Tech Mono", "Consolas", monospace;
+  --font-body: "Share Tech Mono", ui-monospace, "Consolas", monospace;
+
+  /* Shape */
+  --radius-panel: 2px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-bg-void);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  letter-spacing: 0.01em;
+}
+
+/* Headline / label text uses the pixel display font sparingly - never for
+   dense body copy or numbers, per the "avoid unreadable UI" requirement. */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+}
+
+/* Thin scrollbars fit the terminal aesthetic better than the OS default. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-bright) var(--color-bg-inset);
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: var(--color-bg-inset);
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border-bright);
+}
+
+/*
+ * Pixel-frame: a chunky stepped double-border that reads as "retro
+ * terminal panel" without needing any image assets. Used by ui/PixelFrame
+ * and ui/GamePanel.
+ */
+.pixel-frame {
+  position: relative;
+  border: 2px solid var(--color-border-bright);
+  box-shadow:
+    0 0 0 2px var(--color-bg-void),
+    0 0 0 3px var(--color-border);
+}
+.pixel-frame::before,
+.pixel-frame::after {
+  content: "";
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: var(--neon-cyan);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.pixel-frame::before {
+  top: -4px;
+  left: -4px;
+}
+.pixel-frame::after {
+  bottom: -4px;
+  right: -4px;
+}
+
+/* Faint CRT scanline overlay - purely decorative, disabled when the user
+   turns off animations (see app/settingsStore.ts + .no-animate below). */
+.crt-scanlines {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(63, 230, 224, 0.025) 0px,
+    rgba(63, 230, 224, 0.025) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  mix-blend-mode: screen;
+}
+.crt-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 49;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+.no-animate,
+.no-animate * {
+  animation-duration: 0.001ms !important;
+  transition-duration: 0.001ms !important;
+}
+
+/* =========================================================================
+ * UI Professional Polish Sprint additions.
+ * Everything below builds on the existing token set above (--neon-*,
+ * --color-bg-*, --text-*) rather than inventing new colors, so the "one
+ * system" look holds - these are new SHAPES (cards, docks, HUD chips) using
+ * the same palette, not a new palette. Existing classes above (.pixel-frame,
+ * .stage-*, .terminal-blip, etc.) are all still used and unchanged.
+ * ========================================================================= */
+
+/* --- Game cards (equipment/model/tech shop cards) ---------------------- */
+/* A card with real depth (layered shadow + faint top highlight) instead of
+   a flat 1px-border box - this is the single biggest lever for "looks like
+   a SaaS dashboard" vs "looks like a game shop". */
+.game-card {
+  position: relative;
+  background: linear-gradient(165deg, rgba(28, 42, 58, 0.9) 0%, rgba(11, 17, 26, 0.96) 100%);
+  border: 1px solid var(--color-border-bright);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 10px 24px -12px rgba(0, 0, 0, 0.65);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.game-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--neon-cyan-dim);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 16px 32px -14px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(63, 230, 224, 0.25);
+}
+.game-card-locked {
+  filter: grayscale(0.55) brightness(0.6);
+  opacity: 0.8;
+}
+.game-card-locked:hover {
+  transform: none;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 10px 24px -12px rgba(0, 0, 0, 0.65);
+  border-color: var(--color-border-bright);
+}
+
+@keyframes card-glow-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.04) inset,
+      0 10px 24px -12px rgba(0, 0, 0, 0.65),
+      0 0 0 1px rgba(77, 255, 158, 0.18),
+      0 0 18px rgba(77, 255, 158, 0.12);
+    border-color: var(--neon-green-dim);
+  }
+  50% {
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.06) inset,
+      0 10px 24px -12px rgba(0, 0, 0, 0.65),
+      0 0 0 1px rgba(77, 255, 158, 0.4),
+      0 0 26px rgba(77, 255, 158, 0.22);
+    border-color: var(--neon-green);
+  }
+}
+/* "You can afford/act on this right now" affordance - a slow ambient
+   glow, distinct from .animate-pulse-glow (opacity pulse, used for alerts). */
+.game-card-available {
+  animation: card-glow-pulse 2.6s ease-in-out infinite;
+}
+
+/* Terminal-tier / AGI-tier special card treatment (Tech Tree, Model cards). */
+@keyframes card-glow-pulse-orange {
+  0%,
+  100% {
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.04) inset,
+      0 10px 24px -12px rgba(0, 0, 0, 0.65),
+      0 0 0 1px rgba(255, 171, 77, 0.25),
+      0 0 22px rgba(255, 171, 77, 0.16);
+    border-color: var(--neon-orange-dim);
+  }
+  50% {
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.07) inset,
+      0 10px 24px -12px rgba(0, 0, 0, 0.65),
+      0 0 0 1px rgba(255, 171, 77, 0.55),
+      0 0 34px rgba(255, 171, 77, 0.3);
+    border-color: var(--neon-orange);
+  }
+}
+.game-card-terminal {
+  animation: card-glow-pulse-orange 2.4s ease-in-out infinite;
+}
+
+/* --- Discovery System "hidden" (undiscovered) card treatment -----------
+ * Steam-quality UI/UX review sprint (docs/2026-08-15 review, section 3.2):
+ * distinct from .game-card-locked (grayscale/dim, but still shows the real
+ * item) - this is a silhouette/glitch/lock look for content the player
+ * hasn't discovered the existence of yet. Kept subtle (short flicker, low
+ * amplitude) so a row of "???" cards doesn't feel like a broken UI. */
+.game-card-hidden {
+  filter: grayscale(1) brightness(0.45);
+  opacity: 0.75;
+  border-style: dashed;
+}
+.game-card-hidden:hover {
+  transform: none;
+  border-color: var(--color-border-bright);
+}
+@keyframes glitch-flicker {
+  0%,
+  92%,
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  93% {
+    opacity: 0.4;
+    transform: translateX(-1px);
+  }
+  95% {
+    opacity: 1;
+    transform: translateX(1px);
+  }
+  97% {
+    opacity: 0.55;
+    transform: translateX(0);
+  }
+}
+.glitch-text {
+  animation: glitch-flicker 3.2s ease-in-out infinite;
+}
+
+/* --- CelebrationBanner (Steam-quality UI/UX review sprint, section 3.9/5)
+ * Central, large, 2-3s "big moment" overlay for tech unlocks / model
+ * completions / rewarded Objective completions / achievement unlocks.
+ * Reuses .pixel-frame's border treatment and the same fade/scale grammar as
+ * .animate-flash-in (GlobalToast) rather than inventing a new motion
+ * language - just bigger and centered. Respects .no-animate like every other
+ * animation class here (see App.tsx's root className). */
+@keyframes celebration-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  12% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+  18% {
+    transform: scale(1);
+  }
+  85% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+.celebration-banner {
+  animation: celebration-pop 2.6s ease-in-out forwards;
+}
+
+/* --- Phase 2 Polish (celebration overhaul spec 1-1/1-2): tiered weight ---
+ * "normal" keeps the original celebration-pop grammar (fade + gentle
+ * overshoot). "major"/"milestone" scale the same grammar up (bigger
+ * overshoot, slightly longer hold) rather than inventing new motion, so the
+ * whole family still reads as one system. Duration lives in the class name
+ * so CelebrationBanner.tsx's JS timeout (which must dismiss the entry at the
+ * same moment the animation finishes) can derive it from the level with no
+ * separate lookup table drifting out of sync with the CSS.
+ */
+@keyframes celebration-pop-major {
+  0% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  10% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  16% {
+    transform: scale(1);
+  }
+  88% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+@keyframes celebration-pop-milestone {
+  0% {
+    opacity: 0;
+    transform: scale(0.78);
+  }
+  9% {
+    opacity: 1;
+    transform: scale(1.09);
+  }
+  16% {
+    transform: scale(1);
+  }
+  90% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+.celebration-banner-normal {
+  animation: celebration-pop 2.6s ease-in-out forwards;
+}
+.celebration-banner-major {
+  animation: celebration-pop-major 3s ease-in-out forwards;
+}
+.celebration-banner-milestone {
+  animation: celebration-pop-milestone 3.4s ease-in-out forwards;
+}
+
+/* Soft full-viewport color wash behind major/milestone banners ("screen
+ * glow" from spec 1-2). Sits below the banner overlay's z-index, above
+ * regular UI, and is purely decorative (pointer-events: none). */
+@keyframes celebration-glow-wash {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.55;
+  }
+}
+.celebration-glow-wash {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  animation: celebration-glow-wash 3s ease-in-out forwards;
+}
+
+/* One extra bright scanline sweep for "milestone"-tier moments only - a
+ * brief flash rather than the ambient .crt-scanlines overlay. */
+@keyframes celebration-scanline-flash {
+  0% {
+    opacity: 0;
+  }
+  6% {
+    opacity: 0.5;
+  }
+  22% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.celebration-scanline-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.06) 0px,
+    rgba(255, 255, 255, 0.06) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+  mix-blend-mode: screen;
+  animation: celebration-scanline-flash 3.4s ease-in-out forwards;
+}
+
+/* Small drifting motes around major/milestone banners - kept few and light
+ * per spec 1-1's "particle-STYLE" wording (not a real particle system). */
+@keyframes celebration-particle-drift {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.5);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--particle-x, 0px), var(--particle-y, -36px)) scale(1);
+  }
+}
+.celebration-particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+  animation: celebration-particle-drift 2.2s ease-out forwards;
+  pointer-events: none;
+}
+
+/* Fixed viewport overlay LAYER for CelebrationBanner (Steam-quality UI/UX
+ * review sprint follow-up: the banner was rendering inside normal document
+ * flow instead of as a true viewport overlay). Root cause: `.pixel-frame`
+ * sets `position: relative`, and because `@tailwind utilities` is injected
+ * at the TOP of this file (see the `@tailwind` directives above) while
+ * `.pixel-frame` is declared further down, `.pixel-frame`'s `position:
+ * relative` wins the cascade over Tailwind's `.fixed` utility at equal
+ * specificity - silently cancelling the fixed positioning regardless of
+ * className order. Fix: positioning now lives on a dedicated OUTER wrapper
+ * that never carries `.pixel-frame`, so there is no cascade collision;
+ * `.pixel-frame` + `.celebration-banner` (visuals + animation) stay on the
+ * INNER box. Centering is done via flexbox on the wrapper instead of the
+ * old left/top 50% + baked-in transform:translate(-50%,-50%), so the
+ * keyframe above only needs to animate `scale()`. */
+/* Phase 3.1 "Celebration Cleanup" (spec 1-5): true vertical centering (the
+ * Phase 2 Polish behavior) put the banner right on top of GPU cards and
+ * other center-of-screen UI in actual play. Anchored to a top strip instead
+ * - align-items: flex-start + a top padding in the 16-22vh range - so the
+ * banner reads as "a heads-up moment" near the top of the screen rather than
+ * covering whatever the player is looking at mid-action. Only major/
+ * milestone-tier objectives (plus tech/model/achievement/portfolio events)
+ * ever reach this overlay now (see ObjectiveWatcher.tsx), so it stays rare
+ * enough that a fixed position is fine - no need to dodge specific panels. */
+.celebration-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  pointer-events: none;
+  padding: 18vh 16px 0;
+}
+
+/* --- Icon frame (SVG/CSS equipment placeholders, ui/Icon.tsx) ---------- */
+.icon-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at 35% 25%, rgba(63, 230, 224, 0.14), transparent 65%), var(--color-bg-inset);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+}
+
+/* --- Status chips (compact stat pills used inside game-cards) ---------- */
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+/* --- Bottom dock navigation (ui/Tabs.tsx) ------------------------------- */
+.dock-nav {
+  background: linear-gradient(180deg, rgba(12, 19, 29, 0.7) 0%, rgba(8, 13, 21, 0.96) 45%, rgba(5, 7, 10, 0.98) 100%);
+  border-top: 1px solid var(--color-border-bright);
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.55);
+}
+.dock-tab {
+  position: relative;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+.dock-tab:hover {
+  transform: translateY(-2px);
+}
+.dock-tab-active {
+  box-shadow: 0 0 0 1px rgba(63, 230, 224, 0.5) inset, 0 -2px 14px rgba(63, 230, 224, 0.25);
+}
+.dock-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  white-space: nowrap;
+  z-index: 10;
+  background: rgba(6, 10, 16, 0.95);
+  border: 1px solid var(--neon-cyan-dim);
+  color: var(--neon-cyan);
+  padding: 0.25rem 0.5rem;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+.dock-tab:hover .dock-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* --- Left sidebar navigation (Phase 11 "App Shell Restructure",
+   components/Sidebar.tsx) - same visual language as the bottom dock nav
+   above (.dock-nav/.dock-tab/.dock-tab-active/.dock-tooltip), just
+   reoriented for a vertical rail instead of a horizontal dock. Purely
+   additive: none of the .dock-* rules above are touched, and the bottom
+   dock itself (ui/Tabs.tsx) is unchanged - it's still used as-is for
+   narrow viewports. --- */
+.sidebar-nav {
+  background: linear-gradient(180deg, rgba(12, 19, 29, 0.7) 0%, rgba(8, 13, 21, 0.96) 45%, rgba(5, 7, 10, 0.98) 100%);
+  border-right: 1px solid var(--color-border-bright);
+  box-shadow: 8px 0 28px rgba(0, 0, 0, 0.35);
+}
+.sidebar-group {
+  position: relative;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+.sidebar-group:hover {
+  transform: translateX(2px);
+}
+.sidebar-group-active {
+  box-shadow: 0 0 0 1px rgba(63, 230, 224, 0.5) inset, 2px 0 14px rgba(63, 230, 224, 0.25);
+}
+.sidebar-subtab-active {
+  box-shadow: 0 0 0 1px rgba(63, 230, 224, 0.35) inset;
+}
+.sidebar-tooltip {
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  white-space: nowrap;
+  z-index: 20;
+  background: rgba(6, 10, 16, 0.95);
+  border: 1px solid var(--neon-cyan-dim);
+  color: var(--neon-cyan);
+  padding: 0.25rem 0.5rem;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+.sidebar-group:hover .sidebar-tooltip {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* --- Semi-transparent HUD overlays (Base View resource/status chips) --- */
+.hud-panel {
+  background: rgba(6, 10, 16, 0.62);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(63, 230, 224, 0.25);
+  box-shadow: 0 8px 20px -8px rgba(0, 0, 0, 0.6);
+}
+
+/* --- Large headline numbers (HUD/finance/header) ------------------------ */
+.stat-huge {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  text-shadow: 0 0 12px currentColor;
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 1.4s ease-in-out infinite;
+}
+
+@keyframes flash-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-flash-in {
+  animation: flash-in 0.2s ease-out;
+}
+
+/*
+ * Base View stage backgrounds (Productization Sprint 2, photo backgrounds
+ * added afterward). Each stage layers, front to back: the original CSS
+ * texture/glow gradients (kept as a color-wash + scanline overlay so the
+ * UI's neon palette still reads as "one system" over a photo), a dark
+ * scrim gradient (keeps floating text / terminal blips legible regardless
+ * of how bright the underlying photo is), and finally the real background
+ * photo from src/assets/backgrounds/*.jpg. background-size/position/repeat
+ * are set once (not per comma-layer) so they apply uniformly to every
+ * layer - harmless for the gradient layers (they have no intrinsic size to
+ * preserve) and exactly what's needed for the photo layer. See
+ * src/game/engine/progression.ts for how visualStage is derived, and
+ * src/components/BaseView.tsx for where these classes are applied.
+ */
+.stage-garage {
+  background-image:
+    repeating-linear-gradient(45deg, rgba(255, 171, 77, 0.035) 0px, rgba(255, 171, 77, 0.035) 2px, transparent 2px, transparent 12px),
+    linear-gradient(180deg, rgba(20, 17, 13, 0.22) 0%, rgba(12, 10, 8, 0.42) 100%),
+    url("./assets/backgrounds/garage.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.stage-small_office {
+  background-image:
+    repeating-linear-gradient(90deg, rgba(63, 230, 224, 0.03) 0px, rgba(63, 230, 224, 0.03) 1px, transparent 1px, transparent 18px),
+    linear-gradient(180deg, rgba(12, 21, 32, 0.22) 0%, rgba(8, 13, 21, 0.42) 100%),
+    url("./assets/backgrounds/small-office.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.stage-server_room {
+  background-image:
+    repeating-linear-gradient(0deg, rgba(63, 230, 224, 0.05) 0px, rgba(63, 230, 224, 0.05) 2px, transparent 2px, transparent 16px),
+    linear-gradient(180deg, rgba(8, 24, 36, 0.22) 0%, rgba(5, 13, 21, 0.42) 100%),
+    url("./assets/backgrounds/server-room.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.stage-data_center {
+  background-image:
+    repeating-linear-gradient(0deg, rgba(77, 255, 158, 0.045) 0px, rgba(77, 255, 158, 0.045) 2px, transparent 2px, transparent 14px),
+    repeating-linear-gradient(90deg, rgba(63, 230, 224, 0.03) 0px, rgba(63, 230, 224, 0.03) 1px, transparent 1px, transparent 22px),
+    linear-gradient(180deg, rgba(6, 22, 32, 0.22) 0%, rgba(4, 9, 15, 0.42) 100%),
+    url("./assets/backgrounds/data-center.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.stage-hyperscale_campus {
+  background-image:
+    repeating-linear-gradient(0deg, rgba(77, 255, 158, 0.06) 0px, rgba(77, 255, 158, 0.06) 2px, transparent 2px, transparent 10px),
+    radial-gradient(ellipse at 30% 20%, rgba(63, 230, 224, 0.08), transparent 55%),
+    radial-gradient(ellipse at 75% 70%, rgba(77, 255, 158, 0.07), transparent 55%),
+    linear-gradient(180deg, rgba(5, 16, 25, 0.24) 0%, rgba(3, 8, 16, 0.4) 100%),
+    url("./assets/backgrounds/hyperscale-campus.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.stage-singularity_lab {
+  background-image:
+    radial-gradient(circle at 50% 40%, rgba(200, 170, 255, 0.14), transparent 60%),
+    radial-gradient(ellipse at 20% 80%, rgba(63, 230, 224, 0.1), transparent 55%),
+    radial-gradient(ellipse at 80% 20%, rgba(255, 255, 255, 0.06), transparent 50%),
+    linear-gradient(180deg, rgba(10, 7, 22, 0.2) 0%, rgba(5, 5, 16, 0.38) 100%),
+    url("./assets/backgrounds/singularity-lab.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* A subtle "terminal blink" used inside the Base view to suggest automated
+   activity - opacity/intensity is bumped via the .automation-* modifier
+   classes BaseView.tsx applies based on the current AutomationStage. */
+@keyframes terminal-blink {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.terminal-blip {
+  animation: terminal-blink 2.2s ease-in-out infinite;
+}
+.terminal-blip:nth-child(2n) {
+  animation-delay: 0.4s;
+}
+.terminal-blip:nth-child(3n) {
+  animation-delay: 0.9s;
+}
+
+/* Base View click affordance + floating "+X TB" text. */
+.baseview-click-area {
+  cursor: pointer;
+  user-select: none;
+  transition: filter 0.15s ease;
+}
+.baseview-click-area:active {
+  filter: brightness(1.15);
+}
+
+@keyframes float-up-fade {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.9);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -6px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -52px) scale(1.05);
+  }
+}
+.floating-data-text {
+  position: absolute;
+  pointer-events: none;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--neon-cyan);
+  text-shadow: 0 0 6px rgba(63, 230, 224, 0.7);
+  animation: float-up-fade 0.85s ease-out forwards;
+  z-index: 5;
+}
+
+@keyframes click-ping {
+  0% {
+    opacity: 0.6;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2.2);
+  }
+}
+.click-ping {
+  position: absolute;
+  pointer-events: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 2px solid var(--neon-cyan);
+  animation: click-ping 0.5s ease-out forwards;
+  z-index: 4;
+}
+
+/* =========================================================================
+ * Phase 2 "Real Tech Tree UI" sprint additions.
+ * Node-graph canvas for TechTreeView.tsx: vanilla SVG (connection lines) +
+ * absolutely-positioned HTML nodes inside a pan/zoom "world" div (see that
+ * component's doc comment for the technique). Everything below is additive -
+ * no existing class here is modified.
+ * ========================================================================= */
+
+.tech-tree-viewport {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(63, 230, 224, 0.05), transparent 60%),
+    var(--color-bg-inset);
+  border: 1px solid var(--color-border);
+  cursor: grab;
+}
+.tech-tree-viewport.is-panning {
+  cursor: grabbing;
+}
+.tech-tree-world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.tech-node {
+  position: absolute;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.tech-node:hover {
+  transform: translateY(-2px);
+}
+
+@keyframes tech-node-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px currentColor, 0 0 10px 1px currentColor;
+  }
+  50% {
+    box-shadow: 0 0 0 1px currentColor, 0 0 20px 4px currentColor;
+  }
+}
+.tech-node-available {
+  animation: tech-node-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes tech-node-flash {
+  0% {
+    box-shadow: 0 0 0 2px currentColor, 0 0 40px 12px currentColor;
+    transform: scale(1.08);
+  }
+  100% {
+    box-shadow: 0 0 0 1px currentColor, 0 0 6px 1px currentColor;
+    transform: scale(1);
+  }
+}
+.tech-node-just-unlocked {
+  animation: tech-node-flash 1.4s ease-out;
+}
+
+@keyframes tech-line-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.tech-line-available {
+  animation: tech-line-pulse 1.8s ease-in-out infinite;
+}
+
+/* AGI-terminal tech node special glow (white/violet, per Phase 2 spec section
+   6) - same pulse technique as .game-card-terminal (orange) but violet, so
+   the AGI Theory node in the tree reads as visually distinct from ordinary
+   ai_research-category nodes. */
+@keyframes tech-node-glow-terminal {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(185, 140, 255, 0.35),
+      0 0 22px rgba(185, 140, 255, 0.22),
+      0 0 2px rgba(255, 255, 255, 0.4);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(185, 140, 255, 0.7),
+      0 0 36px rgba(185, 140, 255, 0.42),
+      0 0 6px rgba(255, 255, 255, 0.6);
+  }
+}
+/* When a node is BOTH .tech-node-available and .tech-node-terminal (the
+   AGI Theory node while it's still researchable), only ONE `animation`
+   shorthand can win - two separate single-class rules would otherwise
+   depend on fragile source order. This compound selector pins the terminal
+   glow as the winner explicitly (spec section 6: AGI gets its own special
+   treatment over ordinary category coloring), regardless of how the rules
+   above get reordered later. */
+.tech-node-terminal.tech-node-available {
+  animation: tech-node-glow-terminal 2.4s ease-in-out infinite;
+}
+.tech-node-terminal {
+  animation: tech-node-glow-terminal 2.4s ease-in-out infinite;
+}
+
+/* Selected-node indicator for TechTreeView's node-graph (Phase 2 sprint).
+ * A dedicated class (not Tailwind's `ring-*` utility) declared after
+ * `.game-card` above, so it wins the cascade the same way `.game-card-*`
+ * variants already do - see TechNode's doc comment in TechTreeView.tsx. */
+.tech-node-selected {
+  box-shadow:
+    0 0 0 2px var(--neon-cyan),
+    0 0 16px rgba(63, 230, 224, 0.45);
+}
