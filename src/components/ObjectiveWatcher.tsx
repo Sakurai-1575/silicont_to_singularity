@@ -7,7 +7,19 @@ import { useT } from "../game/i18n";
 import { useNumberFormat } from "../app/useFormat";
 import type { ObjectiveReward } from "../game/types/objectives";
 
-type ToastEntry = { id: string; objectiveId: string };
+type ToastEntry = { id: string; objectiveId: string } | { id: string; batchCount: number };
+
+/**
+ * Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-2): once a single
+ * tick completes at least this many objectives at once (typically only
+ * possible in the opening seconds of a new game, when several starter
+ * objectives all go complete together), collapse them into one combined
+ * "N Objectives Completed" toast instead of flooding the corner with
+ * individually-named ones. Below this threshold, every objective still gets
+ * its own named toast exactly as before - this only kicks in for genuine
+ * bursts.
+ */
+const BATCH_TOAST_THRESHOLD = 3;
 
 /** Phase 3.1 (Celebration Cleanup spec 1-3): the left-bottom corner is a
  * scrolling log, not a stack that grows forever - only this many toasts are
@@ -97,7 +109,12 @@ export default function ObjectiveWatcher() {
         });
       }
     }
-    const next = newlyCompleted.map((objectiveId) => ({ id: `${objectiveId}_${Date.now()}`, objectiveId }));
+    // Phase 13.5 (spec 1-2): a burst of BATCH_TOAST_THRESHOLD+ completions in
+    // one tick becomes a single combined toast rather than one per objective.
+    const next: ToastEntry[] =
+      newlyCompleted.length >= BATCH_TOAST_THRESHOLD
+        ? [{ id: `batch_${Date.now()}`, batchCount: newlyCompleted.length }]
+        : newlyCompleted.map((objectiveId) => ({ id: `${objectiveId}_${Date.now()}`, objectiveId }));
     setToasts((cur) => [...cur, ...next].slice(-MAX_VISIBLE_TOASTS));
     next.forEach((toast) => {
       window.setTimeout(() => {
@@ -112,6 +129,19 @@ export default function ObjectiveWatcher() {
   return (
     <div className="pointer-events-none fixed bottom-4 left-4 z-50 flex max-w-[calc(100vw-2rem)] flex-col items-start gap-1.5 sm:max-w-xs">
       {toasts.map((toast) => {
+        if ("batchCount" in toast) {
+          return (
+            <div
+              key={toast.id}
+              className="animate-flash-in pixel-frame w-full border border-cyan-dim bg-void/90 px-3 py-1.5 text-left font-display text-[9px] text-cyan-neon shadow-lg backdrop-blur-sm"
+            >
+              <div className="uppercase tracking-wide">{t("objectives.completeToast")}</div>
+              <div className="mt-0.5 line-clamp-2 break-words text-[11px] font-sans text-ink-primary">
+                {t("objectives.completeToastBatch", { count: toast.batchCount })}
+              </div>
+            </div>
+          );
+        }
         const rewardBrief = formatRewardBrief(getObjectiveReward(toast.objectiveId), fmt);
         return (
           <div

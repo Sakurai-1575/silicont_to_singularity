@@ -1,4 +1,4 @@
-import type { Competitor } from "../types/competitors";
+import type { Competitor, CompetitorDefinition, CompetitorId } from "../types/competitors";
 
 /**
  * Progression Expansion Sprint (spec section 9: "競合企業システム"). Fixed
@@ -38,3 +38,28 @@ export const INITIAL_COMPETITORS: Competitor[] = [
     aggressiveness: 0.7,
   },
 ];
+
+/**
+ * Phase 14 "Market & Competitor Redesign" (spec section 5): static,
+ * NON-PERSISTED flavor/tuning data for each of the 4 fixed rivals above - see
+ * types/competitors.ts's CompetitorDefinition doc comment for why this is
+ * deliberately kept separate from the persisted `Competitor` shape (no save
+ * migration needed for this phase). `focus` mirrors each rival's flavor
+ * story from INITIAL_COMPETITORS above (OpenMind Labs = research-heavy,
+ * NeoAI = enterprise-heavy, Titan Compute = infrastructure/GPU-heavy,
+ * DeepFuture = fast-growing subscription upstart). `growthRate`/
+ * `threatLevel` feed engine/competitors.ts's calculateCompetitivePressure -
+ * see that function's doc comment for how these combine with each
+ * competitor's live `marketShare` into a small subtractive term on the
+ * player's marketShare target.
+ */
+export const COMPETITOR_DEFINITIONS: Record<CompetitorId, CompetitorDefinition> = {
+  openmind_labs: { id: "openmind_labs", focus: "research", growthRate: 0.4, threatLevel: 4 },
+  neo_ai: { id: "neo_ai", focus: "enterprise", growthRate: 0.3, threatLevel: 3 },
+  titan_compute: { id: "titan_compute", focus: "gpuRental", growthRate: 0.2, threatLevel: 2 },
+  deep_future: { id: "deep_future", focus: "subscription", growthRate: 0.55, threatLevel: 3 },
+};
+
+export function getCompetitorDefinition(id: string): CompetitorDefinition | undefined {
+  return COMPETITOR_DEFINITIONS[id as CompetitorId];
+}

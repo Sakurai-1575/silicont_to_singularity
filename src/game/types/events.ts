@@ -93,6 +93,19 @@ export type EventState = {
    * always has it set via createEventSlice's initial value.
    */
   completedMilestoneIds: string[];
+  /**
+   * Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-1): ids of every
+   * Objective (engine/objectives.ts's OBJECTIVE_DEFINITIONS) ever observed
+   * complete, so displayed completion status can never "roll back" when a
+   * live condition later goes false again (e.g. deleting the model that
+   * satisfied an objective). Deliberately separate from `rewardedObjectiveIds`
+   * above - many Objectives have no `reward` field and so never enter that
+   * list, but still need sticky completion tracking here. Consulted by
+   * engine/objectives.ts's getObjectiveStatuses/getNextObjectiveId; appended
+   * to (never removed from) by engine/tick.ts alongside the existing Step 20e
+   * reward-granting loop.
+   */
+  completedObjectiveIds: string[];
 };
 
 /** Phase 4 "Company Calendar & Time Control System" - see EventState.timeScale's doc comment and engine/timeControl.ts. */

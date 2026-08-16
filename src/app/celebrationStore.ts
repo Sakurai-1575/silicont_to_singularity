@@ -65,11 +65,30 @@ type CelebrationStoreState = {
   shift: () => void;
 };
 
+/**
+ * Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-2): once the queue
+ * already has this many entries backed up, further "minor"/"normal" pushes
+ * are silently dropped (the corner toast in ObjectiveWatcher.tsx/
+ * AchievementWatcher.tsx still shows regardless - only the center-banner
+ * queue is throttled). "major"/"milestone" entries are never dropped - the
+ * whole point is that those stay reserved for genuinely big moments, so they
+ * always get shown. This is what keeps a burst of early-game unlocks
+ * (multiple techs/models completing within a few ticks of each other) from
+ * turning into a multi-minute banner backlog.
+ */
+const BACKLOG_DROP_THRESHOLD = 4;
+
 export const useCelebrationStore = create<CelebrationStoreState>((set) => ({
   queue: [],
   push: (entry) =>
-    set((s) => ({
-      queue: [...s.queue, { ...entry, id: `${entry.kind}_${entry.refId}_${Date.now()}_${s.queue.length}` }],
-    })),
+    set((s) => {
+      const isMinorTier = entry.level === "minor" || entry.level === "normal";
+      if (isMinorTier && s.queue.length >= BACKLOG_DROP_THRESHOLD) {
+        return s;
+      }
+      return {
+        queue: [...s.queue, { ...entry, id: `${entry.kind}_${entry.refId}_${Date.now()}_${s.queue.length}` }],
+      };
+    }),
   shift: () => set((s) => ({ queue: s.queue.slice(1) })),
 }));

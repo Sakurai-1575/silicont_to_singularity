@@ -61,6 +61,8 @@ import { rollRandomEvent } from "./randomEvents";
 import { getRandomEventSpec } from "../data/randomEvents";
 import { simulateCompetitorsTick, COMPETITOR_TICK_INTERVAL_SECONDS } from "./competitors";
 import { buildAnalyticsSnapshot, maybeRecordAnalyticsSnapshot } from "./analytics";
+import { gameDayFromSeconds } from "./calendar";
+import { resolveEventSystemTick } from "./eventSystem";
 
 /**
  * Advances one tick (1 second, spec section 4). Pure function: GameState in,
@@ -146,7 +148,11 @@ export function runTick(state: GameState): GameState {
   }
 
   // --- Step 3: power usage (unaffected by throttling, clarification 9) -------------------
-  const powerUsage = calculatePowerUsage(gpuStats.gpuPowerUsage, coolingStats.coolingPowerUsage);
+  // Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-7): uses the
+  // PREVIOUS tick's state.inferenceLoadPercent - this tick's own inference
+  // load isn't computed until Step 11c, below - see calculatePowerUsage's
+  // doc comment for why.
+  const powerUsage = calculatePowerUsage(gpuStats.gpuPowerUsage, coolingStats.coolingPowerUsage, state.inferenceLoadPercent);
 
   // --- Step 4: temperature ----------------------------------------------------------------
   // Progression Expansion Sprint: Infrastructure Lead staff add to the same
@@ -479,6 +485,47 @@ export function runTick(state: GameState): GameState {
     if (p.brand !== undefined) finalBrand = Math.max(0, Math.min(BALANCE.brandMaxValue, p.brand));
   }
 
+  // --- Step 20c-2 (Phase 15 "Event System Expansion"): periodic Event System check ---------------
+  // Runs at most once every BALANCE.eventCheckIntervalDays in-game days (see
+  // engine/eventSystem.ts's doc comment) - a separate, periodic system
+  // alongside Step 20c's per-tick engine/randomEvents.ts above, both logging
+  // into the same eventLog. Checked against a snapshot reflecting everything
+  // computed so far this tick (including Step 20c's own random-event
+  // resolution), same "stack cleanly on top" rationale as eventRollState.
+  let staffMorale = state.staffMorale;
+  const currentGameDay = gameDayFromSeconds(gameTimeSeconds);
+  const eventSystemRollState: GameState = {
+    ...state,
+    cash,
+    ownedGpus: finalOwnedGpus,
+    ownedCooling: finalOwnedCooling,
+    cleanData: finalCleanData,
+    rawData,
+    researchPoints: finalResearchPoints,
+    subscribers: finalSubscribers,
+    users: finalUsers,
+    reputation,
+    brand: finalBrand,
+    marketShare,
+    valuation,
+    staffMorale,
+    competitors,
+  };
+  const eventSystemOutcome = resolveEventSystemTick(eventSystemRollState, currentGameDay);
+  let eventSystem = eventSystemOutcome.eventSystem;
+  if (eventSystemOutcome.logMessage && eventSystemOutcome.eventType) {
+    logEvent(eventSystemOutcome.eventType, eventSystemOutcome.logMessage);
+    const effect = eventSystemOutcome.effect;
+    if (effect.cashDelta) cash += effect.cashDelta;
+    if (effect.reputationDelta) reputation = clampReputation(reputation + effect.reputationDelta);
+    if (effect.brandDelta) finalBrand = Math.max(0, Math.min(BALANCE.brandMaxValue, finalBrand + effect.brandDelta));
+    if (effect.researchPointsDelta) finalResearchPoints = Math.max(0, finalResearchPoints + effect.researchPointsDelta);
+    if (effect.rawDataDelta) rawData = Math.max(0, rawData + effect.rawDataDelta);
+    if (effect.cleanDataDelta) finalCleanData = Math.max(0, finalCleanData + effect.cleanDataDelta);
+    if (effect.marketShareDelta) marketShare = Math.max(0, Math.min(100, marketShare + effect.marketShareDelta));
+    if (effect.staffMoraleDelta) staffMorale = Math.max(0, Math.min(100, staffMorale + effect.staffMoraleDelta));
+  }
+
   // --- Step 20d (Early Game Milestone & Balance Sprint): one-time bonus auto-grant ---------------
   // Checked against a fully-computed snapshot of "this tick's state" (everything above, cash
   // BEFORE bonus payout) so eligibility reflects what the player actually sees this tick.
@@ -542,6 +589,9 @@ export function runTick(state: GameState): GameState {
     users: finalUsers,
     competitors,
     lastCompetitorSimAt,
+    // Phase 15 "Event System Expansion".
+    staffMorale,
+    eventSystem,
   };
 
   const objectiveStatuses = getObjectiveStatuses(snapshotForChecks);
@@ -573,6 +623,19 @@ export function runTick(state: GameState): GameState {
     if (reward.brand) finalBrand = Math.max(0, Math.min(BALANCE.brandMaxValue, finalBrand + reward.brand));
     rewardedObjectiveIds = [...rewardedObjectiveIds, status.id];
     logEvent("success", `目標達成: ${status.id}`);
+  }
+
+  // --- Step 20e-2 (Phase 13.5 "Human Playtest Critical Fix Sprint", spec 1-1): sticky Objective completion tracking ---
+  // Separate from the reward loop above - EVERY objective observed complete
+  // this tick (not just reward-bearing ones) gets recorded here, once,
+  // forever. This is what makes engine/objectives.ts's getObjectiveStatuses/
+  // getNextObjectiveId immune to a later live-condition flip-flop (e.g.
+  // deleting the model that satisfied an objective).
+  let completedObjectiveIds = state.completedObjectiveIds;
+  for (const status of objectiveStatuses) {
+    if (!status.completed) continue;
+    if (completedObjectiveIds.includes(status.id)) continue;
+    completedObjectiveIds = [...completedObjectiveIds, status.id];
   }
 
   // --- Step 20f (Phase 6 "Milestone & Chapter Expansion Sprint"): Milestone reward granting ---
@@ -634,6 +697,7 @@ export function runTick(state: GameState): GameState {
     brand: finalBrand,
     claimedBonusIds,
     rewardedObjectiveIds,
+    completedObjectiveIds,
     completedMilestoneIds,
     stallSeconds,
     lastCompletedObjectiveCount: completedObjectiveCount,

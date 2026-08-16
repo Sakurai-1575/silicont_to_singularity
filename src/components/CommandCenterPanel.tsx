@@ -5,6 +5,7 @@ import { useSettingsStore } from "../app/settingsStore";
 import { useNumberFormat } from "../app/useFormat";
 import { getObjectiveStatuses, getNextObjectiveId, getObjectiveReward } from "../game/engine/objectives";
 import { getCurrentChapterId, getChapterProgress } from "../game/engine/chapters";
+import { calculateCompetitivePressure } from "../game/engine/competitors";
 import { getMaxDeployedModels } from "../game/engine/portfolio";
 import { getTechDiscoveryState } from "../game/engine/discovery";
 import { ALL_STAFF_ROLES, getDepartmentHeadcount, getTotalAssignedHeadcount, getStaffedDepartmentCount } from "../game/engine/departments";
@@ -117,6 +118,12 @@ export default function CommandCenterPanel() {
   const netCashFlow = -state.burnRate;
   const runway = state.burnRate > 0 ? state.cash / state.burnRate : Infinity;
 
+  // --- Market Snapshot (Phase 14 "Market & Competitor Redesign" spec section
+  // 8: light-touch, optional addition only - "大規模なCommand Centerの改修は
+  // しない"). Same engine/competitors.ts function MarketPanel.tsx's Overview/
+  // Competitors subtabs already call - not re-derived here.
+  const competitivePressure = calculateCompetitivePressure(state.competitors);
+
   // --- Model Portfolio Summary (spec 5-3) ---
   const maxDeployedModels = getMaxDeployedModels({ facilityId: state.facilityId, unlockedTechIds: state.unlockedTechIds });
   const deployedCount = state.deployedModelIds.length;
@@ -227,6 +234,19 @@ export default function CommandCenterPanel() {
             value={formatPercent(state.equity, 1)}
             tone={state.equity < 34 ? "danger" : state.equity < 50 ? "warn" : undefined}
           />
+        </div>
+      </GamePanel>
+
+      {/* --- Market Snapshot (Phase 14 "Market & Competitor Redesign", spec section 8) --- */}
+      <GamePanel title={t("commandCenter.marketWidget.title")} accent="orange" headerRight={<GoToButton tab="market" />}>
+        <div className="grid grid-cols-2 gap-3">
+          {/* Phase 14 hotfix: this file's local StatBlock's `tone` prop is narrower
+              ("cyan"|"green"|"warn"|"danger") than ui/StatCard.tsx's shared Tone
+              type - "orange" isn't a member here, so this uses "warn" instead. */}
+          <StatBlock label={t("market.marketShareLabel")} value={formatPercent(state.marketShare, 1)} tone="warn" />
+          <StatBlock label={t("market.reputation")} value={`${state.reputation.toFixed(0)} / 100`} tone="cyan" />
+          <StatBlock label={t("market.overview.competitivePressureLabel")} value={`-${competitivePressure.toFixed(1)}`} tone="warn" />
+          <StatBlock label={t("market.brand")} value={state.brand.toFixed(2)} tone="cyan" />
         </div>
       </GamePanel>
 

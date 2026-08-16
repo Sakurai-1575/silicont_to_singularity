@@ -145,6 +145,10 @@ const ja = {
     financeWidget: {
       title: "資金状況",
     },
+    // Phase 14 "Market & Competitor Redesign" (spec section 8): light-touch addition only.
+    marketWidget: {
+      title: "市場状況",
+    },
     modelWidget: {
       title: "モデル収益",
       deployed: "デプロイ中",
@@ -239,6 +243,13 @@ const ja = {
     nextEffect: "次Lv:",
     maxLevel: "MAX",
     networkNote: "現在は施設能力指標。将来API/Enterprise安定性に影響予定。",
+    // Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-4): facility downgrade ("縮小移転").
+    downgrade: "縮小移転",
+    downgradeConfirmTitle: "縮小移転の確認",
+    downgradeConfirmMessage:
+      "{{facility}}へ縮小移転しますか？維持費は下がりますが、一部の施設能力や内部アップグレード上限が低下します。過去の実績やマイルストーンは維持されます。",
+    downgradeConfirmButton: "縮小移転する",
+    downgradeBackButton: "キャンセル",
   },
   training: {
     title: "AI研究",
@@ -359,6 +370,66 @@ const ja = {
     penalizes: "弱化",
     competitorsTitle: "競合企業",
     competitorsDesc: "ライバル企業の動向です。",
+    // Phase 14 "Market & Competitor Redesign": subtab switcher + per-subtab
+    // content keys. market.* keys above (title..competitorsDesc) are reused
+    // as-is inside the new subtabs - nothing above this comment was renamed.
+    tabs: {
+      overview: "市場概要",
+      productRevenue: "プロダクト収益",
+      enterprise: "法人案件",
+      competitors: "競合",
+      pricing: "価格・セグメント",
+    },
+    overview: {
+      competitivePressureLabel: "競合圧力",
+      marketGrowthRateLabel: "市場成長率",
+      mainRevenueSourceLabel: "主要収益源",
+      recentActivityTitle: "最近の市場動向",
+      recentActivityEmpty: "まだ市場動向はありません。",
+      companyControlsTitle: "会社の方向性",
+    },
+    productRevenue: {
+      title: "プロダクト収益",
+      desc: "モデル・データセット・ライセンスなど、市場活動から生まれる製品別の収益です（会社全体の収支は財務タブを参照）。",
+    },
+    enterpriseTab: {
+      salesEffectLabel: "Enterprise Sales効果",
+      legalEffectLabel: "Legal/Compliance効果",
+      legalEffectNote: "現在は表示のみです。今後のフェーズでEnterprise契約の成功可否に接続予定です。",
+      rewardMultiplierLabel: "報酬倍率（目安）",
+      deliveredCountLabel: "納品済み案件数",
+    },
+    competitorsTab: {
+      pressureTitle: "競合圧力（合計）",
+      pressureDesc: "各社の市場シェア・成長率・脅威度から算出した、自社の市場シェア成長目標値を押し下げる圧力の合計です。",
+      focusLabel: "主要市場",
+      growthRateLabel: "成長率",
+      threatLevelLabel: "脅威度",
+      strengthLabel: "モデル強度",
+      yourPositionTitle: "自社の市場ポジション",
+      impactNote: "競合の状況は市場シェアの成長目標値に影響します（今後のイベントシステムとの連携を予定）。",
+    },
+    marketLabels: {
+      research: "研究",
+      enterprise: "法人案件",
+      subscription: "サブスクリプション",
+      gpuRental: "GPUレンタル",
+    },
+    pricing: {
+      comingSoon: "Coming Soon",
+      desc: "市場セグメントと価格戦略は今後追加予定です。",
+      segmentsTitle: "今後追加予定のセグメント",
+      segments: {
+        consumerChat: "コンシューマーチャット",
+        developerApi: "開発者向けAPI",
+        enterprise: "エンタープライズ",
+        research: "研究機関",
+        healthcare: "ヘルスケア",
+        finance: "金融",
+        government: "政府機関",
+        education: "教育",
+      },
+    },
   },
   staff: {
     title: "人材",
@@ -377,6 +448,13 @@ const ja = {
       business: "ビジネス",
       executive: "経営幹部",
     },
+    // Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-5): fireStaff + staffMorale foundation.
+    morale: "社員の士気",
+    fire: "解雇",
+    fireConfirmTitle: "解雇の確認",
+    fireConfirmMessage: "{{role}}を1人解雇しますか？社員の士気が低下します。この操作は取り消せません。",
+    fireConfirmButton: "解雇する",
+    fireBackButton: "キャンセル",
   },
   departments: {
     title: "部署配置",
@@ -388,6 +466,11 @@ const ja = {
     effect: "現在の効果",
     assignButton: "配置",
     unassignButton: "解除",
+    // Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-6): department role-eligibility restriction.
+    eligibleRoles: "配置可能な職種",
+    eligibleRolesSeparator: "、",
+    noEligibleStaffHint: "この部署に配置できる職種の人材がいません。",
+    ineligibleHint: "この職種はこの部署に配置できません。",
     effects: {
       research: "研究ポイント生成 +{{value}}%",
       data: "データ収集・整備 +{{value}}%",
@@ -446,6 +529,102 @@ const ja = {
     empty: "まだイベントはありません",
   },
   /**
+   * Phase 15 "Event System Expansion": localized display text for
+   * EventSystemState.eventSystem.recentEvents (engine/eventDefinitions.ts's
+   * EVENT_DEFINITIONS). The hardcoded-Japanese eventLog message itself
+   * (GameEventRecord.logMessage) is NOT localized (same "engine layer
+   * messages are always Japanese" convention as every other tick.ts message -
+   * see components/GlobalToast.tsx's doc comment); this namespace is only
+   * for the localized title/description/category/severity labels shown in
+   * the Reports Events subtab / Market Competitors tab / toast.
+   */
+  events: {
+    title: "イベント",
+    recent: "最近のイベント",
+    noRecentEvents: "まだイベントは発生していません。",
+    categories: {
+      competitor: "競合",
+      infrastructure: "インフラ",
+      finance: "財務",
+      research: "研究",
+      enterprise: "法人案件",
+      legal: "法務",
+      hr: "人事",
+      market: "市場",
+      facility: "施設",
+      positive: "好影響",
+      negative: "悪影響",
+    },
+    severity: {
+      info: "情報",
+      minor: "軽微",
+      major: "重要",
+      critical: "重大",
+    },
+    items: {
+      competitor_model_launch: {
+        title: "競合モデル発表",
+        description: "競合企業が新モデルを発表し、市場シェアに一時的な圧力がかかります。",
+      },
+      open_research_breakthrough: {
+        title: "OpenMind Labsの研究成果公開",
+        description: "OpenMind Labsが研究成果を公開。少量の研究ポイントを獲得できますが、競合の存在感が増します。",
+      },
+      enterprise_push_neo_ai: {
+        title: "NeoAIの法人市場攻勢",
+        description: "NeoAIが法人市場で攻勢をかけます。Enterprise Sales部署の配置が影響を和らげます。",
+      },
+      consumer_hype_wave: {
+        title: "消費者向けの話題沸騰",
+        description: "DeepFutureが一般消費者向けで話題に。Customer Success部署の配置が影響を和らげます。",
+      },
+      cooling_incident_warning: {
+        title: "冷却設備への負荷警告",
+        description: "冷却設備に負荷がかかっています。Infrastructure部署の配置で回避できます。",
+      },
+      power_contract_review: {
+        title: "電力契約の見直し",
+        description: "電力使用率が高い状態が続くと発生します。小さな対応費用がかかります。",
+      },
+      gpu_supply_shortage: {
+        title: "GPU供給不足",
+        description: "GPU価格高騰のニュース。今回は情報のみです。",
+      },
+      datacenter_efficiency_audit: {
+        title: "データセンター効率監査",
+        description: "Infrastructure部署が配置されていると、施設運用の監査で小さなコスト削減が見つかります。",
+      },
+      university_collaboration_offer: {
+        title: "大学との共同研究オファー",
+        description: "Research部署が配置されていると、大学との共同研究オファーが届きます。",
+      },
+      high_quality_dataset_opportunity: {
+        title: "高品質データセット取得機会",
+        description: "Data部署が配置されていると、高品質なデータセットを取得する機会が生まれます。",
+      },
+      dataset_quality_backlash: {
+        title: "データ品質への批判",
+        description: "評判が低い状態が続くと、データ品質への批判が広がることがあります。",
+      },
+      enterprise_security_review: {
+        title: "法人顧客のセキュリティ確認",
+        description: "法人案件の納品実績があると発生します。Legal/Compliance部署の配置で影響を回避できます。",
+      },
+      flagship_customer_referral: {
+        title: "大口顧客からの紹介",
+        description: "Customer Success部署の配置と高い評判があると、大口顧客からの紹介が発生します。",
+      },
+      employee_burnout_signal: {
+        title: "社員疲労の兆候",
+        description: "士気が低い状態が続くと発生します。HR部署の配置がさらなる悪化を抑えます。",
+      },
+      recruiting_momentum: {
+        title: "採用市場での注目",
+        description: "ブランド力が高まると、採用市場で注目を集め士気が上がります。",
+      },
+    },
+  },
+  /**
    * Phase 13 "Reports & Analytics Foundation" (components/ReportsPanel.tsx):
    * the new Analytics UI's labels. Deliberately reuses existing keys
    * (finance.revenue/finance.expenses/finance.totalGrossProfit/
@@ -458,6 +637,9 @@ const ja = {
     tabs: {
       analytics: "分析",
       logs: "ログ",
+      // Phase 15 "Event System Expansion": new Reports subtab listing
+      // EventSystemState.eventSystem.recentEvents.
+      events: "イベント",
     },
     periodFilter: {
       label: "期間",
@@ -573,6 +755,8 @@ const ja = {
     showDetails: "詳細を表示",
     hideDetails: "詳細を隠す",
     completeToast: "目標を達成しました！",
+    // Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-2): combined toast when several objectives complete in the same tick.
+    completeToastBatch: "{{count}}件の目標を達成しました！",
     categories: {
       startup_basics: "スタートアップ基礎",
       data_pipeline: "データ基盤",

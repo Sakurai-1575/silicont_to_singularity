@@ -17,4 +17,7 @@ export const createStaffSlice: StateCreator<GameStore, [], [], StaffState> = () 
   enterpriseSalesReps: 0,
   cto: 0,
   coo: 0,
+
+  // Phase 13.5 "Human Playtest Critical Fix Sprint" (see types/staff.ts's doc comment).
+  staffMorale: 100,
 });

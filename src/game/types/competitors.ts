@@ -24,3 +24,34 @@ export type CompetitorState = {
   /** gameTimeSeconds of the last competitor simulation step - engine/tick.ts runs engine/competitors.ts only once every COMPETITOR_TICK_INTERVAL_SECONDS, not every tick. */
   lastCompetitorSimAt: number;
 };
+
+/**
+ * Phase 14 "Market & Competitor Redesign" (spec section 5). The 4 markets a
+ * competitor can be primarily focused in - reuses engine/companyStrategy.ts's
+ * StrategyMarket vocabulary (research/enterprise/subscription/gpuRental) so
+ * the same t("market.marketLabels.*") i18n keys can label both a
+ * CompanyStrategySpec's favoredMarket and a competitor's focus. Flavor/UI
+ * grouping only - does not gate anything.
+ */
+export type CompetitorFocus = "research" | "enterprise" | "subscription" | "gpuRental";
+
+/**
+ * Phase 14: static, NON-PERSISTED flavor/tuning data for a competitor
+ * company, keyed by CompetitorId - see data/competitors.ts's
+ * COMPETITOR_DEFINITIONS. Deliberately kept separate from the persisted
+ * `Competitor` type above (whose shape must stay stable for save
+ * compatibility - spec section 5's "既存セーブ互換性" requirement). growthRate
+ * and threatLevel feed engine/competitors.ts's calculateCompetitivePressure,
+ * which engine/marketShare.ts's calculateMarketShareTarget subtracts from
+ * the player's marketShare target - see that function's doc comment for the
+ * exact formula and its tunable data/balance.ts weights.
+ */
+export type CompetitorDefinition = {
+  id: CompetitorId;
+  /** Primary market this competitor is strongest in - flavor/UI grouping only, does not gate anything. */
+  focus: CompetitorFocus;
+  /** 0..1 - independent of Competitor.aggressiveness (which only drives simulateCompetitorsTick's per-tick action roll). A slower, structural "how fast is this rival compounding" figure used only by calculateCompetitivePressure and the Competitors subtab's display. */
+  growthRate: number;
+  /** 1(low)..5(high) - qualitative threat rating. Feeds calculateCompetitivePressure and the Competitors subtab's threat badge. */
+  threatLevel: number;
+};

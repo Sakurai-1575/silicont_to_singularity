@@ -20,6 +20,8 @@ export const createEventSlice: StateCreator<GameStore, [], [], EventState> = () 
   timeScale: DEFAULT_TIME_SCALE,
   // Phase 6 "Milestone & Chapter Expansion Sprint" (see types/events.ts's doc comment).
   completedMilestoneIds: [],
+  // Phase 13.5 "Human Playtest Critical Fix Sprint" (see types/events.ts's doc comment).
+  completedObjectiveIds: [],
 });
 
 /**

@@ -580,10 +580,19 @@ body {
   background: linear-gradient(180deg, rgba(12, 19, 29, 0.7) 0%, rgba(8, 13, 21, 0.96) 45%, rgba(5, 7, 10, 0.98) 100%);
   border-right: 1px solid var(--color-border-bright);
   box-shadow: 8px 0 28px rgba(0, 0, 0, 0.35);
+  /* Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-8): sidebar felt
+     slightly too narrow - widened from the JSX's w-44 (11rem) to 12.5rem.
+     CSS-only per this phase's "no App Shell structure changes" constraint;
+     this selector already coexists with w-44 on the same element in
+     Sidebar.tsx, and being a class selector (not a utility) it wins the
+     cascade without needing !important. */
+  width: 12.5rem;
 }
 .sidebar-group {
   position: relative;
   transition: transform 0.15s ease, color 0.15s ease;
+  /* Phase 13.5 (spec 1-8): a touch more breathing room per category row. */
+  padding-block: 0.15rem;
 }
 .sidebar-group:hover {
   transform: translateX(2px);
@@ -591,8 +600,18 @@ body {
 .sidebar-group-active {
   box-shadow: 0 0 0 1px rgba(63, 230, 224, 0.5) inset, 2px 0 14px rgba(63, 230, 224, 0.25);
 }
+/* Phase 13.5 (spec 1-8): sub-item rows (the tab buttons nested under each
+   category header) get a touch more row height and a clearer selected
+   state, without any Sidebar.tsx changes - targeted structurally via the
+   sibling div Sidebar.tsx already renders after each .sidebar-group button. */
+.sidebar-group + div button {
+  padding-block: 0.3rem;
+  border-radius: 2px;
+  transition: background-color 0.12s ease, color 0.15s ease;
+}
 .sidebar-subtab-active {
   box-shadow: 0 0 0 1px rgba(63, 230, 224, 0.35) inset;
+  background: rgba(63, 230, 224, 0.08);
 }
 .sidebar-tooltip {
   position: absolute;

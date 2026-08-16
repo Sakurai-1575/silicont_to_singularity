@@ -25,10 +25,25 @@ import CheatPanel from "./CheatPanel";
  *    same layout, same props, nothing about them changed.
  */
 
-type ReportsSubTab = "analytics" | "logs";
+type ReportsSubTab = "analytics" | "logs" | "events";
 type PeriodFilter = "week" | "quarter" | "all";
-const SUB_TABS: ReportsSubTab[] = ["analytics", "logs"];
+const SUB_TABS: ReportsSubTab[] = ["analytics", "logs", "events"];
 const PERIODS: PeriodFilter[] = ["week", "quarter", "all"];
+
+/**
+ * Phase 15 "Event System Expansion" (spec section 10's nice-to-have "Reports
+ * にEventsサブタブ"). Severity -> Badge tone, matching the existing Badge
+ * component's Tone union (ui/StatCard.tsx) - "critical" isn't produced by any
+ * current EVENT_DEFINITIONS entry (see types/eventSystem.ts's EventSeverity
+ * doc comment) but is mapped here too so the UI doesn't silently drop a
+ * future one.
+ */
+const EVENT_SEVERITY_TONE: Record<string, "neutral" | "cyan" | "warn" | "danger"> = {
+  info: "neutral",
+  minor: "cyan",
+  major: "warn",
+  critical: "danger",
+};
 
 /** In-game days covered by each period filter option - Infinity for "all" (no lower bound on gameDay). Quarter = timeWeeksPerQuarter * timeDaysPerWeek (13*7=91 by default), reusing the same calendar constants engine/calendar.ts itself derives Year/Quarter/Week from, rather than a separately hardcoded 90/91. */
 function periodDays(period: PeriodFilter): number {
@@ -122,6 +137,8 @@ export default function ReportsPanel() {
   const burnRate = useGameStore((s) => s.burnRate);
   const gameTimeSeconds = useGameStore((s) => s.gameTimeSeconds);
   const snapshots = useGameStore((s) => s.analyticsHistory.snapshots);
+  // Phase 15 "Event System Expansion".
+  const recentGameEvents = useGameStore((s) => s.eventSystem.recentEvents);
 
   const [subTab, setSubTab] = useState<ReportsSubTab>("analytics");
   const [period, setPeriod] = useState<PeriodFilter>("all");
@@ -253,6 +270,14 @@ export default function ReportsPanel() {
               />
             </GamePanel>
           </div>
+          {/* Phase 14 "Market & Competitor Redesign" (spec section 8): explicitly
+              did NOT add a new chart here this phase ("今回、新しいグラフは必須ではない").
+              Future extension point: a "Market Share Trend" chart would slot in as
+              a 4th TrendChart above, keyed on a new `marketShare` field added to
+              AnalyticsSnapshot (types/analytics.ts) + engine/analytics.ts's
+              snapshot recorder - MarketPanel.tsx's Overview subtab already exposes
+              the underlying marketShare/competitivePressure numbers this chart
+              would trend. */}
         </>
       )}
 
@@ -264,6 +289,32 @@ export default function ReportsPanel() {
           </div>
           <EventLogPanel />
         </div>
+      )}
+
+      {subTab === "events" && (
+        <GamePanel title={t("events.recent")} accent="cyan">
+          <div className="max-h-96 space-y-2 overflow-y-auto text-xs">
+            {recentGameEvents.length === 0 && <div className="text-ink-muted">{t("events.noRecentEvents")}</div>}
+            {[...recentGameEvents].reverse().map((record) => (
+              <div key={record.id} className="border border-borderdim/60 p-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-mono text-[10px] text-ink-muted">Day {record.day}</span>
+                  <Badge tone={record.positive ? "green" : EVENT_SEVERITY_TONE[record.severity] ?? "neutral"}>
+                    {t(`events.severity.${record.severity}`)}
+                  </Badge>
+                  <Badge tone="neutral">{t(`events.categories.${record.category}`)}</Badge>
+                </div>
+                <div className="mt-1 font-display text-[11px] text-ink-primary">
+                  {t(`events.items.${record.defId}.title`)}
+                </div>
+                <div className="mt-0.5 text-[11px] text-ink-dim">
+                  {t(`events.items.${record.defId}.description`)}
+                </div>
+                <div className="mt-1 text-[10px] text-ink-muted">{record.logMessage}</div>
+              </div>
+            ))}
+          </div>
+        </GamePanel>
       )}
     </div>
   );

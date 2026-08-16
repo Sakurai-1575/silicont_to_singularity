@@ -5,7 +5,3 @@ dist-ssr
 .env
 .env.*
 npm-debug.log*
-
-*.zip
-*_backup*
-*.tsbuildinfo

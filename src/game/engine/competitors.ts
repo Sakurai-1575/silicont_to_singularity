@@ -1,6 +1,7 @@
 import type { Competitor } from "../types/competitors";
 import { BALANCE } from "../data/balance";
 import { rollChance, pickRandom } from "../utils/random";
+import { getCompetitorDefinition } from "../data/competitors";
 
 /**
  * Simplified competitor-company simulation (Progression Expansion Sprint
@@ -62,4 +63,48 @@ export function simulateCompetitorsTick(competitors: Competitor[]): CompetitorSi
   });
 
   return { competitors: nextCompetitors, playerMarketShareDelta, logMessages };
+}
+
+/**
+ * Phase 14 "Market & Competitor Redesign" (spec section 4/6): aggregate
+ * competitive pressure, subtracted from the player's marketShare target in
+ * engine/marketShare.ts's calculateMarketShareTarget so competitors are no
+ * longer purely decorative (spec: "競合は市場シェア計算に何らかの形で影響を与える必要が
+ * ある...装飾要素で終わらせないこと"). Combines each rival's live (persisted)
+ * `marketShare` with its static (non-persisted) `growthRate`/`threatLevel`
+ * from data/competitors.ts's COMPETITOR_DEFINITIONS. All 4 weights below are
+ * tunable via balance.ts without touching this function; the defaults are
+ * deliberately small relative to calculateMarketShareTarget's existing
+ * brand*4 + reputation*0.3 base (max ~90) so this nudges the target down
+ * rather than dominating it or making growth "unbeatable" (spec section 6's
+ * explicit "やりすぎ禁止" constraint) - see marketShare.ts's own doc comment
+ * for how this term is combined.
+ */
+export function calculateCompetitivePressure(competitors: Competitor[]): number {
+  const raw = competitors.reduce((sum, c) => {
+    const def = getCompetitorDefinition(c.id);
+    return (
+      sum +
+      c.marketShare * BALANCE.competitivePressureMarketShareWeight +
+      (def?.growthRate ?? 0) * BALANCE.competitivePressureGrowthWeight +
+      (def?.threatLevel ?? 0) * BALANCE.competitivePressureThreatWeight
+    );
+  }, 0);
+  return Math.max(0, raw * BALANCE.competitivePressureMultiplier);
+}
+
+/**
+ * Phase 14: 0..1 "how strong is this rival's current model lineup" derived
+ * display indicator for the Competitors subtab (MarketPanel.tsx) - purely a
+ * UI helper, NOT persisted and not read by any balance calculation. Blends
+ * the rival's own (flavor) `reputation` - which simulateCompetitorsTick
+ * nudges every ~60s - with its static `threatLevel`, so the number drifts
+ * slowly over a playthrough while still reflecting each competitor's
+ * designed baseline strength.
+ */
+export function getCompetitorModelStrength(competitor: Competitor): number {
+  const def = getCompetitorDefinition(competitor.id);
+  const threatFactor = (def?.threatLevel ?? 3) / 5;
+  const reputationFactor = Math.max(0, Math.min(1, competitor.reputation / 100));
+  return Math.max(0, Math.min(1, reputationFactor * 0.6 + threatFactor * 0.4));
 }

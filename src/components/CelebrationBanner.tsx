@@ -154,13 +154,21 @@ export default function CelebrationBanner() {
   const fmt = useNumberFormat();
   const language = useSettingsStore((s) => s.language);
   const entry = useCelebrationStore((s) => s.queue[0] ?? null);
+  const queueLength = useCelebrationStore((s) => s.queue.length);
   const shift = useCelebrationStore((s) => s.shift);
 
   useEffect(() => {
     if (!entry) return;
-    const timer = window.setTimeout(() => shift(), BANNER_DURATION_MS[entry.level]);
+    // Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-2): when a
+    // backlog has built up behind this entry, drain the queue faster (half
+    // duration, floored at 1.2s) instead of making the player wait through
+    // every entry's full multi-second showcase - most relevant right after
+    // an opening-minutes unlock burst.
+    const baseDuration = BANNER_DURATION_MS[entry.level];
+    const duration = queueLength > 2 ? Math.max(1200, Math.round(baseDuration / 2)) : baseDuration;
+    const timer = window.setTimeout(() => shift(), duration);
     return () => window.clearTimeout(timer);
-  }, [entry, shift]);
+  }, [entry, queueLength, shift]);
 
   if (!entry) return null;
 

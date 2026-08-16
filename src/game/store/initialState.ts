@@ -89,6 +89,8 @@ export function createInitialState(): GameState {
     enterpriseSalesReps: 0,
     cto: 0,
     coo: 0,
+    // Phase 13.5 "Human Playtest Critical Fix Sprint" (see types/staff.ts's doc comment).
+    staffMorale: 100,
 
     // --- Research (6.5) ---
     researchPoints: 0,
@@ -143,6 +145,8 @@ export function createInitialState(): GameState {
     timeScale: DEFAULT_TIME_SCALE,
     // Phase 6 "Milestone & Chapter Expansion Sprint" (see types/events.ts's doc comment).
     completedMilestoneIds: [],
+    // Phase 13.5 "Human Playtest Critical Fix Sprint" (see types/events.ts's doc comment).
+    completedObjectiveIds: [],
 
     // --- Competitors (Progression Expansion Sprint section 9) ---
     competitors: INITIAL_COMPETITORS,
@@ -153,5 +157,12 @@ export function createInitialState(): GameState {
 
     // --- Analytics (Phase 13 "Reports & Analytics Foundation") ---
     analyticsHistory: { snapshots: [] },
+
+    // --- Event System (Phase 15 "Event System Expansion") ---
+    eventSystem: {
+      lastEventCheckDay: 0,
+      recentEvents: [],
+      eventCooldowns: {},
+    },
   };
 }

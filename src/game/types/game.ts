@@ -9,6 +9,7 @@ import type { EventState, TimeScaleKey } from "./events";
 import type { CompetitorState } from "./competitors";
 import type { DepartmentAssignmentState } from "./departments";
 import type { AnalyticsState } from "./analytics";
+import type { EventSystemState } from "./eventSystem";
 
 /**
  * Full game state: the union of every slice's state (no actions).
@@ -28,6 +29,13 @@ import type { AnalyticsState } from "./analytics";
  * top-level slice, same pattern - see store/slices/analyticsSlice.ts +
  * store/initialState.ts for its initial value and utils/save.ts's
  * migrateV11ToV12 for the old-save backfill.
+ *
+ * Phase 15 "Event System Expansion": EventSystemState is the next new
+ * top-level slice, same pattern - see store/slices/eventSystemSlice.ts +
+ * store/initialState.ts for its initial value and utils/save.ts's
+ * migrateV13ToV14 for the old-save backfill. Deliberately a separate slice
+ * from the pre-existing EventState (eventLog/warnings/etc) - see
+ * types/eventSystem.ts's doc comment for why.
  */
 export type GameState = FinanceState &
   DataState &
@@ -39,7 +47,8 @@ export type GameState = FinanceState &
   EventState &
   CompetitorState &
   DepartmentAssignmentState &
-  AnalyticsState;
+  AnalyticsState &
+  EventSystemState;
 
 /**
  * Standard return type for every validated action (spec section 21: "すべての
@@ -152,11 +161,23 @@ export type SaveData = {
  * top-level AnalyticsState slice (analyticsHistory - see
  * types/analytics.ts's doc comment).
  *
+ * Bumped 12 -> 13 for Phase 13.5 "Human Playtest Critical Fix Sprint": new
+ * `completedObjectiveIds` field (types/events.ts's EventState - sticky
+ * Objective completion tracking), new `staffMorale` field (types/staff.ts's
+ * StaffState, backfilled to 100), and sanitization of any existing
+ * `departmentAssignments` entries that are no longer role-eligible per the
+ * new data/departments.ts's ELIGIBLE_ROLES_BY_DEPARTMENT (moved back to
+ * Unassigned, headcount never reduced).
+ *
+ * Bumped 13 -> 14 for Phase 15 "Event System Expansion"'s new top-level
+ * EventSystemState slice (eventSystem - see types/eventSystem.ts's doc
+ * comment). No existing field's shape changed.
+ *
  * See utils/save.ts's migrateSaveData() for the v1->v2, v2->v3, v3->v4,
- * v4->v5, v5->v6, v6->v7, v7->v8, v8->v9, v9->v10, v10->v11, and v11->v12
- * backfills.
+ * v4->v5, v5->v6, v6->v7, v7->v8, v8->v9, v9->v10, v10->v11, v11->v12,
+ * v12->v13, and v13->v14 backfills.
  */
-export const CURRENT_SAVE_VERSION = 12;
+export const CURRENT_SAVE_VERSION = 14;
 
 /** Number of manual save slots exposed in the Save/Load UI. Slot 0 doubles as the autosave/"Continue" slot. */
 export const SAVE_SLOT_COUNT = 3;
@@ -180,10 +201,14 @@ export interface GameActions {
   upgradeFacility: (facilityId: string) => ActionResult<void>;
   /** Phase 7 "Facility Expansion & Internal Upgrades Sprint" - strengthens the CURRENT facility by one level in the given category, distinct from upgradeFacility (relocation) - see store/actions/upgradeFacilityInternal.ts. */
   upgradeFacilityInternal: (category: import("../data/facilityUpgrades").FacilityUpgradeCategory) => ActionResult<void>;
+  /** Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-4) - relocates to the facility exactly one tier below the current one, reducing maintenance cost - see store/actions/downgradeFacility.ts. */
+  downgradeFacility: () => ActionResult<void>;
   setComputeAllocation: (trainingComputeAllocation: number) => ActionResult<void>;
 
   // --- Staff (18.5) ---
   hireStaff: (role: StaffRole) => ActionResult<void>;
+  /** Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-5) - layoffs, reduces headcount + department assignments + staffMorale - see store/actions/fireStaff.ts. */
+  fireStaff: (role: StaffRole, count: number) => ActionResult<void>;
   /**
    * Phase 8 "Employee Assignment & Departments Foundation" (spec section
    * 2-2) - moves `delta` heads of `role` into/out of `department`'s

@@ -34,3 +34,36 @@ export function getTotalAssignedHeadcount(state: GameState): number {
 export function getStaffedDepartmentCount(state: GameState): number {
   return DEPARTMENT_IDS.filter((dept) => getDepartmentHeadcount(state, dept) > 0).length;
 }
+
+/**
+ * Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-5): pure helper
+ * used by store/actions/fireStaff.ts to safely shrink `role`'s department
+ * assignments after a firing, so the assigned-total can never exceed the
+ * newly-reduced hired headcount. Trims deterministically department-by-
+ * department in DEPARTMENT_IDS order (never removes more than necessary,
+ * never touches other roles). A no-op (returns the same object reference)
+ * when the role isn't over-assigned, so callers can spread the result
+ * unconditionally without an extra "did anything change" check.
+ */
+export function trimRoleAssignmentsToHiredCount(
+  departmentAssignments: GameState["departmentAssignments"],
+  role: StaffRole,
+  newHiredCount: number,
+): GameState["departmentAssignments"] {
+  const byDept = departmentAssignments[role];
+  if (!byDept) return departmentAssignments;
+  const totalAssigned = DEPARTMENT_IDS.reduce((sum, dept) => sum + (byDept[dept] ?? 0), 0);
+  let excess = totalAssigned - newHiredCount;
+  if (excess <= 0) return departmentAssignments;
+
+  const nextByDept: Partial<Record<DepartmentId, number>> = { ...byDept };
+  for (const dept of DEPARTMENT_IDS) {
+    if (excess <= 0) break;
+    const current = nextByDept[dept] ?? 0;
+    if (current <= 0) continue;
+    const trim = Math.min(current, excess);
+    nextByDept[dept] = current - trim;
+    excess -= trim;
+  }
+  return { ...departmentAssignments, [role]: nextByDept };
+}

@@ -3,7 +3,16 @@ import { useGameStore } from "../game/store/gameStore";
 import { useT } from "../game/i18n";
 
 type ToastKind = "modelComplete" | "lossExplosion" | "fundingSuccess" | "randomEventGood" | "randomEventBad";
-type ToastEntry = { id: string; kind: ToastKind };
+/**
+ * Phase 15 "Event System Expansion": `label` is a NEW optional field - when
+ * set, the toast renders this text verbatim instead of the fixed
+ * t(`notify.${kind}`) label every other toast kind uses. Used exclusively by
+ * the new EventSystemState.eventSystem.recentEvents watcher below (each
+ * fired event has its own distinct, ALREADY-localized title via
+ * t(`events.items.${defId}.title`)), reusing the existing "randomEventGood"/
+ * "randomEventBad" kinds purely for their good/bad color styling.
+ */
+type ToastEntry = { id: string; kind: ToastKind; label?: string };
 
 const KIND_CLASSES: Record<ToastKind, string> = {
   modelComplete: "border-green-neon bg-green-dim/20 text-green-neon",
@@ -45,9 +54,46 @@ export default function GlobalToast() {
   const t = useT();
   const eventLog = useGameStore((s) => s.eventLog);
   const isMeltdown = useGameStore((s) => s.isMeltdown);
+  // Phase 15 "Event System Expansion".
+  const recentGameEvents = useGameStore((s) => s.eventSystem.recentEvents);
 
   const [toasts, setToasts] = useState<ToastEntry[]>([]);
   const seenLength = useRef<number | null>(null);
+  const seenGameEventsLength = useRef<number | null>(null);
+
+  // Phase 15 "Event System Expansion": watches EventSystemState.eventSystem.
+  // recentEvents growing (same "react to length only, first mount doesn't
+  // replay history" shape as the eventLog watcher below) and shows one toast
+  // per newly-fired event, using its own localized title
+  // (t(`events.items.${defId}.title`)) as the label rather than a fixed
+  // notify.* string - see ToastEntry's `label` field doc comment.
+  useEffect(() => {
+    if (seenGameEventsLength.current === null) {
+      seenGameEventsLength.current = recentGameEvents.length;
+      return;
+    }
+    if (recentGameEvents.length <= seenGameEventsLength.current) {
+      seenGameEventsLength.current = recentGameEvents.length;
+      return;
+    }
+    const newRecords = recentGameEvents.slice(seenGameEventsLength.current);
+    seenGameEventsLength.current = recentGameEvents.length;
+
+    const next: ToastEntry[] = newRecords.map((record) => ({
+      id: record.id,
+      kind: record.positive ? "randomEventGood" : "randomEventBad",
+      label: t(`events.items.${record.defId}.title`),
+    }));
+    if (next.length === 0) return;
+
+    setToasts((cur) => [...cur, ...next]);
+    next.forEach((toast) => {
+      window.setTimeout(() => {
+        setToasts((cur) => cur.filter((x) => x.id !== toast.id));
+      }, 4000);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentGameEvents]);
 
   useEffect(() => {
     if (seenLength.current === null) {
@@ -106,7 +152,7 @@ export default function GlobalToast() {
               key={toast.id}
               className={`animate-flash-in pixel-frame border px-4 py-2 text-center font-display text-[10px] shadow-lg ${KIND_CLASSES[toast.kind]}`}
             >
-              {t(`notify.${toast.kind}`)}
+              {toast.label ?? t(`notify.${toast.kind}`)}
             </div>
           ))}
         </div>

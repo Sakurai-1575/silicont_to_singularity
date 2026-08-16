@@ -2,6 +2,9 @@ import type { GameState, SaveSummary } from "../types/game";
 import { CURRENT_SAVE_VERSION, SAVE_SLOT_COUNT, type SaveData } from "../types/game";
 import { buildSaveSummary } from "../engine/saveSummary";
 import { INITIAL_COMPETITORS } from "../data/competitors";
+import { ALL_STAFF_ROLES } from "../engine/departments";
+import { DEPARTMENT_IDS } from "../types/departments";
+import { isRoleEligibleForDepartment } from "../data/departments";
 
 const SAVE_KEY_PREFIX = "silicon-to-singularity:save:slot";
 /** Sprint 0's single-slot key. Read as a fallback for slot 0 so old saves keep working (see loadGame). */
@@ -252,6 +255,75 @@ function migrateV11ToV12(gameState: GameState): GameState {
 }
 
 /**
+ * v12 -> v13 migration (Phase 13.5 "Human Playtest Critical Fix Sprint"):
+ * three independent backfills bundled into one migration step, per spec
+ * section on Save compatibility:
+ *
+ * 1. `completedObjectiveIds` (types/events.ts's EventState) - v12 saves
+ *    predate sticky Objective completion tracking entirely. Backfills to
+ *    `[]` - NOT to "every currently-complete objective", since the whole
+ *    point of this field is to only ever grow from here forward via
+ *    engine/tick.ts's own tracking loop; a returning player's already-true
+ *    `def.isComplete(state)` conditions are picked up automatically on the
+ *    very next tick regardless (see engine/objectives.ts's
+ *    getObjectiveStatuses `||` check), so no data is lost by starting empty.
+ * 2. `staffMorale` (types/staff.ts's StaffState) - backfills to 100, the
+ *    same "full morale" default a brand new game starts at.
+ * 3. `departmentAssignments` sanitization (types/departments.ts) - any
+ *    existing role/department pairing that's no longer eligible per
+ *    data/departments.ts's ELIGIBLE_ROLES_BY_DEPARTMENT (spec 1-6) is moved
+ *    back to Unassigned by simply dropping that entry - headcount
+ *    (types/staff.ts's per-role hired count) is never touched, only the
+ *    assignment bookkeeping, matching spec's explicit "採用人数を減らさずに
+ *    安全に「未配置」へ戻してください" requirement.
+ */
+function migrateV12ToV13(gameState: GameState): GameState {
+  const g = gameState as GameState & Partial<GameState>;
+  g.completedObjectiveIds ??= [];
+  g.staffMorale ??= 100;
+
+  if (g.departmentAssignments) {
+    const sanitized: GameState["departmentAssignments"] = {};
+    for (const role of ALL_STAFF_ROLES) {
+      const byDept = g.departmentAssignments[role];
+      if (!byDept) continue;
+      const nextByDept: Partial<Record<(typeof DEPARTMENT_IDS)[number], number>> = {};
+      for (const dept of DEPARTMENT_IDS) {
+        const count = byDept[dept];
+        if (!count) continue;
+        if (isRoleEligibleForDepartment(role, dept)) {
+          nextByDept[dept] = count;
+        }
+        // else: dropped - safely returned to "Unassigned" per spec 1-6,
+        // without touching the role's hired headcount anywhere.
+      }
+      sanitized[role] = nextByDept;
+    }
+    g.departmentAssignments = sanitized;
+  }
+
+  return g;
+}
+
+/**
+ * v13 -> v14 migration (Phase 15 "Event System Expansion"): v13 saves
+ * predate the entirely new EventSystemState.eventSystem slice. Backfills to
+ * `{ lastEventCheckDay: 0, recentEvents: [], eventCooldowns: {} }` - the same
+ * "no periodic event has ever fired or been checked yet" state a brand new
+ * game starts at (store/initialState.ts). A returning player's first
+ * post-load tick simply becomes eligible for its first periodic check
+ * BALANCE.eventCheckIntervalDays days later, exactly like a fresh game -
+ * this migration does not touch eventLog, analyticsHistory,
+ * completedObjectiveIds, completedMilestoneIds, staffMorale, or
+ * departmentAssignments at all.
+ */
+function migrateV13ToV14(gameState: GameState): GameState {
+  const g = gameState as GameState & Partial<GameState>;
+  g.eventSystem ??= { lastEventCheckDay: 0, recentEvents: [], eventCooldowns: {} };
+  return g;
+}
+
+/**
  * saveVersion migration scaffold (spec: bump CURRENT_SAVE_VERSION and add a
  * case here whenever GameState's shape changes - callers, loadGame/
  * importSaveString, never need to change). v1/v2/v3/v4/v5/v6/v7 saves are
@@ -304,6 +376,12 @@ function migrateSaveData(raw: unknown): SaveData | null {
   }
   if (candidate.saveVersion <= 11) {
     gameState = migrateV11ToV12(gameState);
+  }
+  if (candidate.saveVersion <= 12) {
+    gameState = migrateV12ToV13(gameState);
+  }
+  if (candidate.saveVersion <= 13) {
+    gameState = migrateV13ToV14(gameState);
   }
   const summary: SaveSummary = candidate.summary ?? buildSaveSummary(gameState);
 

@@ -1,5 +1,5 @@
 import { useGameStore } from "../game/store/gameStore";
-import { DEPARTMENT_DEFINITIONS } from "../game/data/departments";
+import { DEPARTMENT_DEFINITIONS, ELIGIBLE_ROLES_BY_DEPARTMENT, isRoleEligibleForDepartment } from "../game/data/departments";
 import type { DepartmentId } from "../game/types/departments";
 import type { StaffRole } from "../game/types/staff";
 import { ALL_STAFF_ROLES, getDepartmentHeadcount, getRoleUnassignedCount, getTotalAssignedHeadcount } from "../game/engine/departments";
@@ -78,6 +78,17 @@ export default function DepartmentPanel() {
           {DEPARTMENT_DEFINITIONS.map((dept) => {
             const headcount = getDepartmentHeadcount(state, dept.id);
             const effect = getDepartmentEffectDisplay(dept.id, state);
+            // Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-6): only
+            // eligible roles ever get a "+" button here - but a role that's
+            // (still) assigned despite being ineligible (e.g. mid-session
+            // edge case before the next save-migration pass) stays visible so
+            // the player can see it and unassign it.
+            const rolesToShow = rolesWithHeadcount.filter(
+              (role) => isRoleEligibleForDepartment(role, dept.id) || (state.departmentAssignments[role]?.[dept.id] ?? 0) > 0,
+            );
+            const eligibleRoleNames = ELIGIBLE_ROLES_BY_DEPARTMENT[dept.id]
+              .map((role) => getDisplayName("staff", role, language))
+              .join(t("departments.eligibleRolesSeparator"));
             return (
               <div key={dept.id} className="game-card flex flex-col gap-1.5 p-3">
                 <div className="flex items-center justify-between">
@@ -88,46 +99,53 @@ export default function DepartmentPanel() {
                 <div className="stat-chip text-cyan-neon text-[10px]">
                   <span className="text-ink-muted">{t("departments.effect")}</span> {t(`departments.effects.${effect.key}`, { value: effect.value })}
                 </div>
+                <div className="text-[9px] text-ink-muted">
+                  {t("departments.eligibleRoles")}: {eligibleRoleNames}
+                </div>
 
                 <div className="mt-1 flex flex-col gap-1 border-t border-borderdim pt-1.5">
-                  {rolesWithHeadcount.map((role) => {
-                    const assignedHere = state.departmentAssignments[role]?.[dept.id] ?? 0;
-                    const unassigned = getRoleUnassignedCount(state, role);
-                    const hired = (state as unknown as Record<StaffRole, number>)[role] ?? 0;
-                    if (hired === 0) return null;
-                    return (
-                      <div key={role} className="flex items-center justify-between gap-1 text-[10px]">
-                        <span className="truncate text-ink-primary" title={getDisplayName("staff", role, language)}>
-                          {getDisplayName("staff", role, language)}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <span className="text-ink-muted">
-                            {assignedHere}/{hired}
+                  {rolesToShow.length === 0 ? (
+                    <div className="text-[10px] text-ink-muted">{t("departments.noEligibleStaffHint")}</div>
+                  ) : (
+                    rolesToShow.map((role) => {
+                      const assignedHere = state.departmentAssignments[role]?.[dept.id] ?? 0;
+                      const unassigned = getRoleUnassignedCount(state, role);
+                      const hired = (state as unknown as Record<StaffRole, number>)[role] ?? 0;
+                      const eligible = isRoleEligibleForDepartment(role, dept.id);
+                      return (
+                        <div key={role} className="flex items-center justify-between gap-1 text-[10px]">
+                          <span className="truncate text-ink-primary" title={getDisplayName("staff", role, language)}>
+                            {getDisplayName("staff", role, language)}
                           </span>
-                          <GameButton
-                            size="sm"
-                            variant="ghost"
-                            className="!px-1 !py-0"
-                            title={t("departments.unassignButton")}
-                            disabled={assignedHere <= 0}
-                            onClick={() => assignStaffToDepartment(role, dept.id, -1)}
-                          >
-                            -
-                          </GameButton>
-                          <GameButton
-                            size="sm"
-                            variant="ghost"
-                            className="!px-1 !py-0"
-                            title={t("departments.assignButton")}
-                            disabled={unassigned <= 0}
-                            onClick={() => assignStaffToDepartment(role, dept.id, 1)}
-                          >
-                            +
-                          </GameButton>
-                        </span>
-                      </div>
-                    );
-                  })}
+                          <span className="flex items-center gap-1">
+                            <span className="text-ink-muted">
+                              {assignedHere}/{hired}
+                            </span>
+                            <GameButton
+                              size="sm"
+                              variant="ghost"
+                              className="!px-1 !py-0"
+                              title={t("departments.unassignButton")}
+                              disabled={assignedHere <= 0}
+                              onClick={() => assignStaffToDepartment(role, dept.id, -1)}
+                            >
+                              -
+                            </GameButton>
+                            <GameButton
+                              size="sm"
+                              variant="ghost"
+                              className="!px-1 !py-0"
+                              title={eligible ? t("departments.assignButton") : t("departments.ineligibleHint")}
+                              disabled={unassigned <= 0 || !eligible}
+                              onClick={() => assignStaffToDepartment(role, dept.id, 1)}
+                            >
+                              +
+                            </GameButton>
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             );

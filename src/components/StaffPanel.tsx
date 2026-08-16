@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useGameStore } from "../game/store/gameStore";
 import { STAFF_SPECS } from "../game/data";
 import type { StaffRole, StaffTier } from "../game/types/staff";
@@ -6,7 +7,7 @@ import { useSettingsStore } from "../app/settingsStore";
 import { useNumberFormat } from "../app/useFormat";
 import { getDisplayName, getDisplayDescription } from "../game/i18n/dataNames";
 import { formatRate } from "../game/utils/format";
-import { EquipmentCard, type IconKind } from "./ui";
+import { EquipmentCard, GameButton, ConfirmDialog, type IconKind } from "./ui";
 import DepartmentPanel from "./DepartmentPanel";
 
 const TIER_ICON: Record<StaffTier, IconKind> = {
@@ -39,11 +40,24 @@ export default function StaffPanel() {
   const language = useSettingsStore((s) => s.language);
   const state = useGameStore((s) => s);
   const hireStaff = useGameStore((s) => s.hireStaff);
+  const fireStaff = useGameStore((s) => s.fireStaff);
+  const staffMorale = useGameStore((s) => s.staffMorale);
+
+  // Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-5): confirmation
+  // gate for firing, same pattern as TrainingPanel.tsx's confirmCancelTraining.
+  const [confirmFireRole, setConfirmFireRole] = useState<StaffRole | null>(null);
 
   const counts = state as unknown as Record<StaffRole, number>;
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Phase 13.5 (spec 1-5): staffMorale foundation display - no gameplay
+          effect wired yet this phase (see types/staff.ts's doc comment). */}
+      <div className="game-card flex items-center justify-between px-3 py-2">
+        <span className="text-[10px] uppercase tracking-wide text-ink-muted">{t("staff.morale")}</span>
+        <span className="font-display text-sm text-cyan-neon">{Math.round(staffMorale)} / 100</span>
+      </div>
+
       {TIER_ORDER.map((tier) => {
         const specs = STAFF_SPECS.filter((spec) => spec.tier === tier);
         if (specs.length === 0) return null;
@@ -58,24 +72,36 @@ export default function StaffPanel() {
                 const atCap = spec.maxCount !== undefined && ownedCount >= spec.maxCount;
                 const affordable = state.cash >= spec.hireCost && !atCap;
                 return (
-                  <EquipmentCard
-                    key={spec.id}
-                    icon={TIER_ICON[tier]}
-                    name={getDisplayName("staff", spec.id, language)}
-                    description={getDisplayDescription("staff", spec.id, language)}
-                    ownedCount={ownedCount}
-                    priceLabel={fmt.cash(spec.hireCost)}
-                    glow={affordable}
-                    locked={atCap}
-                    lockReason={atCap ? t("staff.capReached") : undefined}
-                    stats={[
-                      { label: "SALARY", value: `${formatRate(spec.salaryPerSecond)}` },
-                      ...(spec.maxCount !== undefined ? [{ label: "CAP", value: `${ownedCount}/${spec.maxCount}` }] : []),
-                    ]}
-                    actionLabel={t("staff.hire")}
-                    onAction={() => hireStaff(spec.id)}
-                    actionDisabled={!affordable}
-                  />
+                  <div key={spec.id} className="flex flex-col gap-1.5">
+                    <EquipmentCard
+                      icon={TIER_ICON[tier]}
+                      name={getDisplayName("staff", spec.id, language)}
+                      description={getDisplayDescription("staff", spec.id, language)}
+                      ownedCount={ownedCount}
+                      priceLabel={fmt.cash(spec.hireCost)}
+                      glow={affordable}
+                      locked={atCap}
+                      lockReason={atCap ? t("staff.capReached") : undefined}
+                      stats={[
+                        { label: "SALARY", value: `${formatRate(spec.salaryPerSecond)}` },
+                        ...(spec.maxCount !== undefined ? [{ label: "CAP", value: `${ownedCount}/${spec.maxCount}` }] : []),
+                      ]}
+                      actionLabel={t("staff.hire")}
+                      onAction={() => hireStaff(spec.id)}
+                      actionDisabled={!affordable}
+                    />
+                    {/* Phase 13.5 (spec 1-5): fire/layoff, adjacent to the card
+                        since EquipmentCard only has one action slot. */}
+                    <GameButton
+                      variant="ghost"
+                      size="sm"
+                      className="w-full"
+                      disabled={ownedCount <= 0}
+                      onClick={() => setConfirmFireRole(spec.id)}
+                    >
+                      {t("staff.fire")}
+                    </GameButton>
+                  </div>
                 );
               })}
             </div>
@@ -88,6 +114,21 @@ export default function StaffPanel() {
           it - department ASSIGNMENT of already-hired staff is a distinct
           action from HIRING new staff above. */}
       <DepartmentPanel />
+
+      {/* Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-5): fire confirmation. */}
+      {confirmFireRole && (
+        <ConfirmDialog
+          title={t("staff.fireConfirmTitle")}
+          message={t("staff.fireConfirmMessage", { role: getDisplayName("staff", confirmFireRole, language) })}
+          confirmLabel={t("staff.fireConfirmButton")}
+          cancelLabel={t("staff.fireBackButton")}
+          onCancel={() => setConfirmFireRole(null)}
+          onConfirm={() => {
+            fireStaff(confirmFireRole, 1);
+            setConfirmFireRole(null);
+          }}
+        />
+      )}
     </div>
   );
 }

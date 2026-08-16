@@ -379,6 +379,68 @@ export type BalanceConfig = {
   analyticsSnapshotIntervalDays: number;
   /** engine/analytics.ts - maximum number of AnalyticsSnapshots kept in AnalyticsHistory.snapshots; once exceeded, the OLDEST snapshots are dropped first (FIFO) so a long playthrough's save size stays bounded. Default 260 = ~5 years of weekly data at the default analyticsSnapshotIntervalDays. */
   analyticsHistoryMaxSnapshots: number;
+
+  // ---------------------------------------------------------------------
+  // Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-5/1-7): fireStaff
+  // morale impact + power balance tightening tunables.
+  // ---------------------------------------------------------------------
+  /** store/actions/fireStaff.ts - points of staffMorale (0-100 scale) lost per firing action (per call, not per head fired). */
+  staffMoraleFireImpact: number;
+  /** engine/hardware.ts aggregateGpuStats - flat multiplier applied to every owned GPU's powerUsage (spec 1-7: "上位GPUほど電力を多く消費するように"). Default 1 = unchanged from pre-Phase-13.5 balance. */
+  gpuPowerUsageMultiplier: number;
+  /** engine/hardware.ts calculatePowerUsage - additional fraction of (gpuPowerUsage + coolingPowerUsage) added on top when inferenceLoadPercent is at 100% (scales linearly with load, 0 at 0% load). Default 0 = unchanged from pre-Phase-13.5 balance (no load-based scaling). */
+  powerUsageInferenceLoadFactor: number;
+
+  // ---------------------------------------------------------------------
+  // Phase 14 "Market & Competitor Redesign" (spec sections 4/6): tunables
+  // for engine/competitors.ts's calculateCompetitivePressure and
+  // engine/marketShare.ts's calculateMarketShareTarget - see those two
+  // functions' doc comments for the full formula each weight feeds into.
+  // All default values are deliberately small relative to the existing
+  // brand*4 + reputation*0.3 target base (max ~90) so competitors nudge the
+  // player's marketShare growth rather than dominating or blocking it
+  // (spec section 6's explicit "やりすぎ禁止" constraint).
+  // ---------------------------------------------------------------------
+  /** engine/competitors.ts calculateCompetitivePressure - weight applied to each competitor's own (persisted) marketShare when summing competitive pressure. */
+  competitivePressureMarketShareWeight: number;
+  /** engine/competitors.ts calculateCompetitivePressure - weight applied to each competitor's static (data/competitors.ts) growthRate (0..1) when summing competitive pressure. */
+  competitivePressureGrowthWeight: number;
+  /** engine/competitors.ts calculateCompetitivePressure - weight applied to each competitor's static (data/competitors.ts) threatLevel (1..5) when summing competitive pressure. */
+  competitivePressureThreatWeight: number;
+  /** engine/competitors.ts calculateCompetitivePressure - overall multiplier on the summed competitive pressure, applied last - the single knob to soften/strengthen every competitor's combined effect at once without re-tuning the 3 weights above individually. */
+  competitivePressureMultiplier: number;
+  /** engine/marketShare.ts calculateMarketShareTarget - weight applied to the Sales effect term (staff-tier Sales multiplier + Sales department bonus) added onto the player's marketShare target ("プレイヤー成長力"). */
+  marketShareSalesEffectWeight: number;
+  /** engine/marketShare.ts calculateMarketShareTarget - weight applied to the Customer Success department reputation-bonus term added onto the player's marketShare target ("プレイヤー成長力"). */
+  marketShareCsEffectWeight: number;
+
+  // ---------------------------------------------------------------------
+  // Phase 15 "Event System Expansion" (spec section 4): tunables for
+  // engine/eventSystem.ts's resolveEventSystemTick, called from
+  // engine/tick.ts at most once every eventCheckIntervalDays in-game days -
+  // a separate, periodic system alongside the older per-tick
+  // eventFrequencySeconds-based engine/randomEvents.ts (unchanged, still
+  // active). See engine/eventDefinitions.ts for the EVENT_DEFINITIONS
+  // roster each of these tunes.
+  // ---------------------------------------------------------------------
+  /** engine/eventSystem.ts resolveEventSystemTick - in-game days between periodic event eligibility checks. Default 7 = once per in-game week (spec section 4's recommendation). */
+  eventCheckIntervalDays: number;
+  /** engine/eventSystem.ts resolveEventSystemTick - probability (0..1) that a DUE check actually fires an event at all (most checks fire nothing, keeping frequency modest per spec section 6's "頻度を高くしすぎない"). */
+  eventBaseChance: number;
+  /** engine/eventSystem.ts resolveEventSystemTick - no periodic event fires before this in-game day, regardless of individual EventDefinition.minDay values (spec section 4's "最序盤はイベントを出しすぎない"). */
+  eventMinStartDay: number;
+  /** engine/eventSystem.ts resolveEventSystemTick - max entries kept in EventSystemState.eventSystem.recentEvents (oldest trimmed first, FIFO - same pattern as EventState.eventLog / AnalyticsState.analyticsHistory). */
+  eventMaxRecentEvents: number;
+  /** engine/eventSystem.ts resolveEventSystemTick - fallback cooldown (in-game days) for any EventDefinition whose own cooldownDays is 0. */
+  eventDefaultCooldownDays: number;
+  /** engine/eventSystem.ts categoryWeightMultiplier - extra weight multiplier applied to every "competitor"-category event when picking which eligible event fires. */
+  competitorEventWeight: number;
+  /** engine/eventSystem.ts categoryWeightMultiplier - extra weight multiplier applied to every "infrastructure"/"facility"-category event. */
+  infrastructureEventWeight: number;
+  /** engine/eventSystem.ts resolveEventSystemTick - extra weight multiplier applied to a candidate event whose computed effect reads as net-beneficial (engine/eventSystem.ts's effectIsNetPositive) this check. */
+  positiveEventWeight: number;
+  /** engine/eventSystem.ts resolveEventSystemTick - extra weight multiplier applied to a candidate event whose computed effect reads as net-detrimental this check. */
+  negativeEventWeight: number;
 };
 
 export const BALANCE: BalanceConfig = {
@@ -562,4 +624,41 @@ export const BALANCE: BalanceConfig = {
   // what each field controls.
   analyticsSnapshotIntervalDays: 7,
   analyticsHistoryMaxSnapshots: 260,
+
+  // Phase 13.5 "Human Playtest Critical Fix Sprint" - see the type block
+  // above for what each field controls. Deliberately light-touch values
+  // (spec 1-7: "今回は軽めの調整でよいです") - a modest, tunable nudge rather
+  // than a rebalance, so existing saves don't suddenly become unwinnable.
+  staffMoraleFireImpact: 5,
+  gpuPowerUsageMultiplier: 1.25,
+  powerUsageInferenceLoadFactor: 0.15,
+
+  // Phase 14 "Market & Competitor Redesign" - see the type block above for
+  // what each field controls. At these defaults, the 4 starting competitors
+  // (INITIAL_COMPETITORS' combined marketShare ~52, COMPETITOR_DEFINITIONS'
+  // combined growthRate ~1.45 and threatLevel ~12) sum to roughly
+  // (52*0.03 + 1.45*3 + 12*1.5) * 0.5 ≈ 12.5 pressure - a modest, tunable
+  // drag on the ~0-90 marketShare target range, not a hard wall.
+  competitivePressureMarketShareWeight: 0.03,
+  competitivePressureGrowthWeight: 3,
+  competitivePressureThreatWeight: 1.5,
+  competitivePressureMultiplier: 0.5,
+  marketShareSalesEffectWeight: 3,
+  marketShareCsEffectWeight: 3,
+
+  // Phase 15 "Event System Expansion" - see the type block above for what
+  // each field controls. Deliberately modest defaults: a due check only
+  // fires an event ~35% of the time, so the average real cadence is roughly
+  // once every ~2-3 in-game weeks per player, well short of "every week
+  // without fail" - individual EVENT_DEFINITIONS.cooldownDays values (10-21
+  // days each) further prevent any single event from repeating too often.
+  eventCheckIntervalDays: 7,
+  eventBaseChance: 0.35,
+  eventMinStartDay: 5,
+  eventMaxRecentEvents: 20,
+  eventDefaultCooldownDays: 14,
+  competitorEventWeight: 1.0,
+  infrastructureEventWeight: 1.0,
+  positiveEventWeight: 1.0,
+  negativeEventWeight: 1.0,
 };

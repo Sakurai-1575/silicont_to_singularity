@@ -1,4 +1,4 @@
-import type { ChangeEvent } from "react";
+import { useState, type ChangeEvent } from "react";
 import { useGameStore } from "../game/store/gameStore";
 import { GPU_SPECS, COOLING_SPECS, FACILITY_SPECS, getFacilitySpec } from "../game/data";
 import { getGatedDiscoveryState } from "../game/engine/discovery";
@@ -16,7 +16,7 @@ import {
   type FacilityUpgradeCategory,
 } from "../game/data/facilityUpgrades";
 import { getFacilityUpgradeTechMultiplier } from "../game/engine/researchEffects";
-import { GamePanel, StatRow, ProgressBar, Badge, EquipmentCard, GameActionButton } from "./ui";
+import { GamePanel, StatRow, ProgressBar, Badge, EquipmentCard, GameActionButton, GameButton, ConfirmDialog } from "./ui";
 
 /** Unit label shown next to each Internal Upgrade category's effect number (Phase 7 spec section 25's "+200 kW" style example). "network" has no live-wired unit yet (display-only, see data/facilityUpgrades.ts) - Gbps is a reasonable placeholder label. */
 const UPGRADE_CATEGORY_UNIT: Record<FacilityUpgradeCategory, string> = {
@@ -69,11 +69,18 @@ export default function HardwarePanel() {
   const buyCooling = useGameStore((s) => s.buyCooling);
   const upgradeFacility = useGameStore((s) => s.upgradeFacility);
   const upgradeFacilityInternal = useGameStore((s) => s.upgradeFacilityInternal);
+  const downgradeFacility = useGameStore((s) => s.downgradeFacility);
   const setComputeAllocation = useGameStore((s) => s.setComputeAllocation);
+
+  // Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-4): confirmation
+  // gate for the destructive-feeling (but actually free/reversible-upward)
+  // downgrade action, same pattern as TrainingPanel.tsx's confirmCancelTraining.
+  const [confirmDowngrade, setConfirmDowngrade] = useState(false);
 
   const facility = getFacilitySpec(facilityId);
   const currentFacilityIndex = FACILITY_SPECS.findIndex((f) => f.id === facilityId);
   const nextFacility = FACILITY_SPECS[currentFacilityIndex + 1];
+  const downgradeTargetFacility = FACILITY_SPECS[currentFacilityIndex - 1];
 
   const gpuCounts = countBySpec(ownedGpus.map((g) => g.specId));
   const coolingCounts = countBySpec(ownedCooling.map((c) => c.specId));
@@ -285,33 +292,43 @@ export default function HardwarePanel() {
             const isNext = nextFacility?.id === f.id;
             const isPast = index < currentFacilityIndex;
             const affordable = cash >= f.upgradeCost;
+            // Phase 13.5 (spec 1-4): the downgrade button lives adjacent to
+            // (not inside) EquipmentCard, which only has one action slot -
+            // shown only on the tier exactly one below the current one.
+            const isDowngradeTarget = downgradeTargetFacility?.id === f.id;
             return (
-              <EquipmentCard
-                key={f.id}
-                icon="facility"
-                name={getDisplayName("facility", f.id, language)}
-                description={getDisplayDescription("facility", f.id, language)}
-                priceLabel={isCurrent || isPast ? "—" : fmt.cash(f.upgradeCost)}
-                glow={isNext && affordable}
-                statusBadge={
-                  isCurrent ? (
-                    <Badge tone="green" icon="●">
-                      {t("hardware.currentFacility")}
-                    </Badge>
-                  ) : isNext ? (
-                    <Badge tone="cyan" icon="→">
-                      {t("hardware.nextFacility")}
-                    </Badge>
-                  ) : undefined
-                }
-                stats={[
-                  { label: "PWR CAP", value: `${fmt.number(f.powerCapacity)} ${t("units.kw")}` },
-                  { label: "ENV", value: f.environmentFactor.toFixed(2) },
-                ]}
-                actionLabel={t("hardware.upgrade")}
-                onAction={() => upgradeFacility(f.id)}
-                actionDisabled={isCurrent || isPast || !affordable}
-              />
+              <div key={f.id} className="flex flex-col gap-1.5">
+                <EquipmentCard
+                  icon="facility"
+                  name={getDisplayName("facility", f.id, language)}
+                  description={getDisplayDescription("facility", f.id, language)}
+                  priceLabel={isCurrent || isPast ? "—" : fmt.cash(f.upgradeCost)}
+                  glow={isNext && affordable}
+                  statusBadge={
+                    isCurrent ? (
+                      <Badge tone="green" icon="●">
+                        {t("hardware.currentFacility")}
+                      </Badge>
+                    ) : isNext ? (
+                      <Badge tone="cyan" icon="→">
+                        {t("hardware.nextFacility")}
+                      </Badge>
+                    ) : undefined
+                  }
+                  stats={[
+                    { label: "PWR CAP", value: `${fmt.number(f.powerCapacity)} ${t("units.kw")}` },
+                    { label: "ENV", value: f.environmentFactor.toFixed(2) },
+                  ]}
+                  actionLabel={t("hardware.upgrade")}
+                  onAction={() => upgradeFacility(f.id)}
+                  actionDisabled={isCurrent || isPast || !affordable}
+                />
+                {isDowngradeTarget && (
+                  <GameButton variant="ghost" size="sm" className="w-full" onClick={() => setConfirmDowngrade(true)}>
+                    {t("hardware.downgrade")}
+                  </GameButton>
+                )}
+              </div>
             );
           })}
         </div>
@@ -378,6 +395,23 @@ export default function HardwarePanel() {
           })}
         </div>
       </section>
+
+      {/* Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-4): downgrade confirmation. */}
+      {confirmDowngrade && downgradeTargetFacility && (
+        <ConfirmDialog
+          title={t("hardware.downgradeConfirmTitle")}
+          message={t("hardware.downgradeConfirmMessage", {
+            facility: getDisplayName("facility", downgradeTargetFacility.id, language),
+          })}
+          confirmLabel={t("hardware.downgradeConfirmButton")}
+          cancelLabel={t("hardware.downgradeBackButton")}
+          onCancel={() => setConfirmDowngrade(false)}
+          onConfirm={() => {
+            downgradeFacility();
+            setConfirmDowngrade(false);
+          }}
+        />
+      )}
     </div>
   );
 }

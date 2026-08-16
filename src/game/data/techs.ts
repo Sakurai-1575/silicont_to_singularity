@@ -153,9 +153,13 @@ export const TECH_SPECS: TechSpec[] = [
     name: "Batch Inference",
     description: "Improves API revenue efficiency by batching inference requests, reducing per-request overhead.",
     costRp: 1500,
+    // Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-3): moved from
+    // y:1150 to y:1250 - at the old position this node's NODE_HEIGHT=110 box
+    // overlapped kv_cache_optimization directly above it (same x, only a
+    // 70px gap). No unlock condition/effect changed, only layout.
     prerequisites: ["quantization"],
     category: "inference_optimization",
-    treePosition: { x: 290, y: 1150 },
+    treePosition: { x: 290, y: 1250 },
   },
   {
     id: "speculative_decoding",
@@ -171,9 +175,12 @@ export const TECH_SPECS: TechSpec[] = [
     name: "Model Distillation",
     description: "Improves gross margin on smaller deployed models by distilling them from larger ones.",
     costRp: 3500,
+    // Phase 13.5 (spec 1-3): moved from y:1150 to y:1250 - same overlap
+    // issue as batch_inference above, mirrored at x:520 (speculative_decoding
+    // directly above it). No unlock condition/effect changed, only layout.
     prerequisites: ["batch_inference"],
     category: "inference_optimization",
-    treePosition: { x: 520, y: 1150 },
+    treePosition: { x: 520, y: 1250 },
   },
 
   // -- Training Optimization (engine/training.ts) --

@@ -548,12 +548,38 @@ const COMPANY_STRATEGY: Record<string, Entry> = {
   },
 };
 
-/** Progression Expansion Sprint section 9: competitor company names. See data/competitors.ts. */
+/**
+ * Progression Expansion Sprint section 9: competitor company names. See
+ * data/competitors.ts. jaDesc/enDesc added in Phase 14 "Market & Competitor
+ * Redesign" (spec section 3-4) - short flavor descriptions matching each
+ * competitor's `focus`/story in data/competitors.ts's COMPETITOR_DEFINITIONS,
+ * shown on the Competitors subtab (MarketPanel.tsx).
+ */
 const COMPETITOR: Record<string, Entry> = {
-  openmind_labs: { ja: "OpenMind Labs", en: "OpenMind Labs" },
-  neo_ai: { ja: "NeoAI", en: "NeoAI" },
-  titan_compute: { ja: "Titan Compute", en: "Titan Compute" },
-  deep_future: { ja: "DeepFuture", en: "DeepFuture" },
+  openmind_labs: {
+    ja: "OpenMind Labs",
+    en: "OpenMind Labs",
+    jaDesc: "研究主導で最先端のモデル品質を追い求める研究特化型企業。",
+    enDesc: "A research-driven lab chasing frontier model quality above all.",
+  },
+  neo_ai: {
+    ja: "NeoAI",
+    en: "NeoAI",
+    jaDesc: "法人向け導入に強みを持つエンタープライズ特化型企業。",
+    enDesc: "An enterprise-focused company strong in corporate deployments.",
+  },
+  titan_compute: {
+    ja: "Titan Compute",
+    en: "Titan Compute",
+    jaDesc: "大規模インフラとGPUリソースを武器にするクラウド寄りの企業。",
+    enDesc: "An infrastructure-heavy rival leaning on large-scale compute.",
+  },
+  deep_future: {
+    ja: "DeepFuture",
+    en: "DeepFuture",
+    jaDesc: "急成長中のサブスクリプション特化型スタートアップ。",
+    enDesc: "A fast-growing startup focused on subscription products.",
+  },
 };
 
 /**

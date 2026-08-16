@@ -346,12 +346,22 @@ export function getMilestoneCelebrationLevel(id: string): "major" | "milestone" 
   return MILESTONE_DEFINITIONS.find((def) => def.id === id)?.celebrationLevel ?? "major";
 }
 
-/** Full Milestone list with each entry's completion state for the given GameState - mirrors getObjectiveStatuses. */
+/**
+ * Full Milestone list with each entry's completion state for the given GameState - mirrors getObjectiveStatuses.
+ *
+ * Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-1): `completed` is
+ * `true` if the live condition holds now *or* the milestone's id is already
+ * in `state.completedMilestoneIds` (appended to by engine/tick.ts's existing
+ * Step 20f reward loop, never pruned). Milestones must never roll back, even
+ * if their live condition later flips false (e.g. deleting the model that
+ * satisfied it) - this makes that guarantee hold for the DISPLAYED status,
+ * not just for reward idempotency.
+ */
 export function getMilestoneStatuses(state: GameState): MilestoneStatus[] {
   return MILESTONE_DEFINITIONS.map((def) => ({
     id: def.id,
     chapterId: def.chapterId,
-    completed: def.condition(state),
+    completed: def.condition(state) || state.completedMilestoneIds.includes(def.id),
     targetTab: def.targetTab,
   }));
 }

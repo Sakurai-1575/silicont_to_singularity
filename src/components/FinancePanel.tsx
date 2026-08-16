@@ -64,6 +64,11 @@ export default function FinancePanel() {
     enterpriseSalesReps: s.enterpriseSalesReps,
     cto: s.cto,
     coo: s.coo,
+    // Phase 13.5 "Human Playtest Critical Fix Sprint": StaffState now
+    // requires staffMorale - included here purely to satisfy the type
+    // (calculateStaffCost/getCooExpenseDiscountFraction only ever read the
+    // per-role headcount fields above, never staffMorale itself).
+    staffMorale: s.staffMorale,
   }));
   // Phase 8 "Employee Assignment & Departments Foundation" (spec section
   // 2-5: Finance -> "支出削減...できればFinanceパネルに表示"): needs full

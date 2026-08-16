@@ -51,4 +51,14 @@ export type StaffState = {
   enterpriseSalesReps: number;
   cto: number;
   coo: number;
+  /**
+   * Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-5): a single
+   * company-wide morale value, range 0-100, default 100. Currently only
+   * lowered by fireStaff.ts (store/actions/fireStaff.ts) - this phase
+   * deliberately does NOT wire any productivity/turnover/hiring-cost
+   * penalty from a low value (spec explicitly scopes those out), it's just
+   * the foundation field a future phase can read. Old saves are backfilled
+   * to 100 by utils/save.ts's migrateV12ToV13.
+   */
+  staffMorale: number;
 };

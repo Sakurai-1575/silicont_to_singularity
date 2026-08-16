@@ -2,7 +2,8 @@ import type { GameState } from "../types/game";
 import type { CompletedModel } from "../types/training";
 import { BALANCE } from "../data/balance";
 import { getSalesEffectMultiplier } from "./staffEffects";
-import { getSalesDepartmentBonus } from "./departmentEffects";
+import { getSalesDepartmentBonus, getCustomerSuccessDepartmentReputationBonus } from "./departmentEffects";
+import { calculateCompetitivePressure } from "./competitors";
 
 /**
  * Market share / users / brand system (Progression Expansion Sprint spec
@@ -36,9 +37,42 @@ export function calculateBrandGrowth(state: GameState): number {
   return Math.max(0, Math.min(growth, BALANCE.brandMaxValue - state.brand));
 }
 
-/** Steady-state marketShare target this tick pulls toward - a function of brand + reputation, contested by engine/competitors.ts elsewhere. */
+/**
+ * Steady-state marketShare target this tick pulls toward (spec: Phase 14
+ * "Market & Competitor Redesign", section 4). Formula intent (kept simple by
+ * design, per the spec's "計算式はシンプルでよいが、設計意図をコメントに残すこと"):
+ *
+ *   プレイヤー成長力 = brand*4 + reputation*0.3 (original Progression Expansion
+ *                        Sprint base, UNCHANGED) + Sales効果 + CS効果
+ *   競合圧力         = calculateCompetitivePressure(state.competitors)
+ *                        (competitor marketShare + growthRate + threatLevel,
+ *                        see engine/competitors.ts's doc comment)
+ *   市場シェア目標値 = clamp(プレイヤー成長力 - 競合圧力, 0, 100)
+ *
+ * The original brand*4 + reputation*0.3 base is preserved byte-for-byte so
+ * existing saves don't see a discontinuity from this change alone - Sales/CS
+ * effect and competitive pressure are additive/subtractive terms layered on
+ * top, both small by design (see their BALANCE.* weights' doc comments) so
+ * this "nudges" the target rather than replacing the old curve. Competitors
+ * are no longer purely decorative (spec section 6), but the pressure term is
+ * deliberately capped in magnitude so market share still can't be driven
+ * unbeatable/negative-only by them ("やりすぎ禁止"). Actual marketShare still
+ * only EASES toward this target via calculateMarketShareGrowth below - never
+ * snaps to it.
+ */
 export function calculateMarketShareTarget(state: GameState): number {
-  return Math.max(0, Math.min(100, state.brand * 4 + state.reputation * 0.3));
+  // Phase 8 "Employee Assignment & Departments Foundation": Sales department
+  // headcount stacks onto the staff-tier sales factor, same weight
+  // calculateBrandGrowth above already uses for consistency.
+  const salesFactor = getSalesEffectMultiplier(state) - 1 + getSalesDepartmentBonus(state);
+  const csFactor = getCustomerSuccessDepartmentReputationBonus(state);
+  const playerGrowthPower =
+    state.brand * 4 +
+    state.reputation * 0.3 +
+    salesFactor * BALANCE.marketShareSalesEffectWeight +
+    csFactor * BALANCE.marketShareCsEffectWeight;
+  const competitivePressure = calculateCompetitivePressure(state.competitors);
+  return Math.max(0, Math.min(100, playerGrowthPower - competitivePressure));
 }
 
 /** marketShare eases toward its target rather than snapping, so a single good/bad tick never causes a visible jump. */

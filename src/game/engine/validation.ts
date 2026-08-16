@@ -24,6 +24,7 @@ import type { FacilityUpgradeCategory } from "../data/facilityUpgrades";
 import { getFacilityUpgradeMaxLevel, getFacilityUpgradeCost } from "../data/facilityUpgrades";
 import type { DepartmentId } from "../types/departments";
 import { getRoleUnassignedCount } from "./departments";
+import { isRoleEligibleForDepartment } from "../data/departments";
 
 /** Field name on GameState holding the current level for each Internal Upgrade category (Phase 7). */
 export const FACILITY_UPGRADE_LEVEL_FIELD: Record<FacilityUpgradeCategory, "facilityPowerUpgradeLevel" | "facilityCoolingUpgradeLevel" | "facilityRackUpgradeLevel" | "facilityNetworkUpgradeLevel"> = {
@@ -93,6 +94,25 @@ export function validateUpgradeFacility(state: GameState, facilityId: string): A
   return ok(undefined);
 }
 
+/**
+ * Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-4): "縮小移転"
+ * (downgrade to the facility one tier below the current one), the inverse of
+ * validateUpgradeFacility above. Deliberately NOT gated by assertNotBankrupt
+ * - unlike every purchase-style action, this one is free and strictly
+ * reduces ongoing maintenance cost, so it doubles as a bankruptcy-recovery
+ * tool (same rationale as validateAssignStaffToDepartment above staying
+ * ungated: a zero-cost, state-reducing action shouldn't be locked out
+ * exactly when the player needs it most). Only ever allowed exactly one tier
+ * down (never further), and never below the very first facility (index 0).
+ */
+export function validateDowngradeFacility(state: GameState): ActionResult<void> {
+  const currentIndex = getFacilityIndex(state.facilityId);
+  if (currentIndex <= 0) {
+    return fail("これ以上縮小移転できません（最小規模の拠点です）。");
+  }
+  return ok(undefined);
+}
+
 export function validateHireStaff(state: GameState, role: StaffRole): ActionResult<void> {
   const bankruptCheck = assertNotBankrupt(state);
   if (bankruptCheck) return bankruptCheck;
@@ -103,6 +123,25 @@ export function validateHireStaff(state: GameState, role: StaffRole): ActionResu
     return fail("これ以上採用できません（定員に達しています）。");
   }
   if (state.cash < getEffectiveHireCost(spec, state)) return fail("資金が不足しています。");
+  return ok(undefined);
+}
+
+/**
+ * Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-5): "解雇"
+ * (layoffs) - reduces `role`'s hired headcount by `count`. Gated by
+ * assertNotBankrupt for consistency with every other headcount-affecting
+ * action (hireStaff above) - unlike facility downgrade/staff reassignment,
+ * firing isn't the ONLY recovery lever available during bankruptcy (funding
+ * remains available per validateRaiseFunding), so there's no strong reason
+ * to special-case it as bankruptcy-exempt.
+ */
+export function validateFireStaff(state: GameState, role: StaffRole, count: number): ActionResult<void> {
+  const bankruptCheck = assertNotBankrupt(state);
+  if (bankruptCheck) return bankruptCheck;
+
+  if (!Number.isInteger(count) || count <= 0) return fail("解雇人数が不正です。");
+  const hired = (state as unknown as Record<StaffRole, number>)[role] ?? 0;
+  if (hired < count) return fail("解雇できる人数を超えています。");
   return ok(undefined);
 }
 
@@ -122,6 +161,14 @@ export function validateAssignStaffToDepartment(
 ): ActionResult<void> {
   if (!Number.isInteger(delta) || delta === 0) return fail("配置人数の変更値が不正です。");
   if (delta > 0) {
+    // Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-6): role
+    // eligibility only blocks NEW assignments (delta > 0) - unassigning
+    // (delta < 0) is always allowed regardless of eligibility, so an old
+    // save's already-invalid assignment can still be manually cleared even
+    // before the save-migration sanitizer runs.
+    if (!isRoleEligibleForDepartment(role, department)) {
+      return fail("この職種はこの部署に配置できません。");
+    }
     const unassigned = getRoleUnassignedCount(state, role);
     if (unassigned < delta) return fail("未配置の人数が不足しています。");
   } else {

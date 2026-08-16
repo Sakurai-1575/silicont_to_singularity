@@ -127,7 +127,9 @@ const OBJECTIVE_DEFINITIONS: ObjectiveDefinition[] = [
     targetTab: "datacenter",
     isComplete: (s) => s.ownedGpus.length > 0,
     reward: { cash: 300 },
-    celebrationLevel: "major",
+    // Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-2): demoted
+    // from "major" - near-duplicate of the Milestone "first_gpu_online",
+    // which already fires the center banner for this same tick.
   },
   {
     id: "buy_used_gtx_cluster",
@@ -141,7 +143,8 @@ const OBJECTIVE_DEFINITIONS: ObjectiveDefinition[] = [
     targetTab: "datacenter",
     isComplete: (s) => s.ownedCooling.length > 0,
     reward: { cash: 200 },
-    celebrationLevel: "major",
+    // Phase 13.5 (spec 1-2): demoted from "major" - opening-minutes noise;
+    // toast is enough for this early beat.
   },
   {
     id: "buy_box_fan",
@@ -240,7 +243,8 @@ const OBJECTIVE_DEFINITIONS: ObjectiveDefinition[] = [
     category: "first_model",
     targetTab: "lab",
     isComplete: (s) => s.activeTrainingJob?.modelId === TINYNET_ID || s.completedModels.some((m) => m.specId === TINYNET_ID),
-    celebrationLevel: "major",
+    // Phase 13.5 (spec 1-2): demoted from "major" - near-duplicate of the
+    // Milestone "first_model_training".
   },
   {
     id: "tinynet_complete",
@@ -248,7 +252,8 @@ const OBJECTIVE_DEFINITIONS: ObjectiveDefinition[] = [
     targetTab: "lab",
     isComplete: (s) => s.completedModels.some((m) => m.specId === TINYNET_ID),
     reward: { cash: 1000, researchPoints: 20 },
-    celebrationLevel: "major",
+    // Phase 13.5 (spec 1-2): demoted from "major" - near-duplicate of the
+    // Milestone "first_model_complete".
   },
   {
     id: "tinynet_deployed",
@@ -256,7 +261,8 @@ const OBJECTIVE_DEFINITIONS: ObjectiveDefinition[] = [
     targetTab: "lab",
     isComplete: (s) => isModelDeployed(s, TINYNET_ID),
     reward: { cash: 1500, researchPoints: 20 },
-    celebrationLevel: "major",
+    // Phase 13.5 (spec 1-2): demoted from "major" - near-duplicate of the
+    // Milestone "first_product_launch".
   },
   {
     id: "deploy_model",
@@ -279,7 +285,8 @@ const OBJECTIVE_DEFINITIONS: ObjectiveDefinition[] = [
     targetTab: "market",
     isComplete: (s) => s.apiRequestsPerSecond > 0,
     reward: { cash: 300 },
-    celebrationLevel: "major",
+    // Phase 13.5 (spec 1-2): demoted from "major" - near-duplicate of the
+    // Milestone "first_revenue".
   },
   {
     id: "api_requests_1ps",
@@ -400,7 +407,8 @@ const OBJECTIVE_DEFINITIONS: ObjectiveDefinition[] = [
     targetTab: "tech",
     isComplete: (s) => s.unlockedTechIds.includes("transformer_architecture"),
     reward: { cash: 1000, researchPoints: 50 },
-    celebrationLevel: "major",
+    // Phase 13.5 (spec 1-2): demoted from "major" - near-duplicate of the
+    // Milestone "first_research_breakthrough".
   },
   {
     id: "smalllm_conditions_check",
@@ -450,7 +458,8 @@ const OBJECTIVE_DEFINITIONS: ObjectiveDefinition[] = [
     targetTab: "tech",
     isComplete: (s) => s.unlockedTechIds.includes("frontier_models"),
     reward: { cash: 5000, researchPoints: 200 },
-    celebrationLevel: "milestone",
+    // Phase 13.5 (spec 1-2): demoted from "milestone" - near-duplicate of the
+    // Milestone "frontier_lab", which already fires the center banner.
   },
 
   // ---- Phase E, part 2 - Infrastructure Growth ----
@@ -622,7 +631,8 @@ const OBJECTIVE_DEFINITIONS: ObjectiveDefinition[] = [
     targetTab: "datacenter",
     isComplete: (s) => s.facilityId === "singularity_complex",
     reward: { cash: 100000, reputation: 20, brand: 10 },
-    celebrationLevel: "milestone",
+    // Phase 13.5 (spec 1-2): demoted from "milestone" - near-duplicate of the
+    // Milestone "facility_singularity_complex_online".
   },
 
   // ---- Phase 8 "Employee Assignment & Departments Foundation" (spec
@@ -818,7 +828,8 @@ const OBJECTIVE_DEFINITIONS: ObjectiveDefinition[] = [
     targetTab: "market",
     isComplete: (s) => s.completedEnterpriseDealIds.length >= 1,
     reward: { cash: 3000, reputation: 5 },
-    celebrationLevel: "major",
+    // Phase 13.5 (spec 1-2): demoted from "major" - near-duplicate of the
+    // Milestone "first_enterprise_contract".
   },
   {
     id: "enterprise_deals_5",
@@ -994,7 +1005,8 @@ const OBJECTIVE_DEFINITIONS: ObjectiveDefinition[] = [
     targetTab: "tech",
     isComplete: (s) => s.unlockedTechIds.includes("agi_theory"),
     reward: { cash: 20000, researchPoints: 500, reputation: 15 },
-    celebrationLevel: "milestone",
+    // Phase 13.5 (spec 1-2): demoted from "milestone" - near-duplicate of the
+    // Milestone "agi_theory", which already fires the center banner.
   },
   {
     id: "agi_omni_training_started",
@@ -1046,18 +1058,37 @@ export function getObjectiveCelebrationLevel(id: string): "minor" | "normal" | "
   return def.reward ? "normal" : "minor";
 }
 
-/** Full objective list with each entry's completion state for the given GameState. */
+/**
+ * Full objective list with each entry's completion state for the given GameState.
+ *
+ * Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-1): `completed` is
+ * `true` if the live condition holds RIGHT NOW *or* the objective was ever
+ * observed complete before (`state.completedObjectiveIds`, appended to by
+ * engine/tick.ts, never pruned). This makes completion sticky - an action
+ * that reduces state later (deleting a model, downgrading a facility, firing
+ * staff) can never make an already-completed objective show as incomplete
+ * again. Reward-granting idempotency is unaffected - that's still gated
+ * separately by `rewardedObjectiveIds` in engine/tick.ts.
+ */
 export function getObjectiveStatuses(state: GameState): ObjectiveStatus[] {
   return OBJECTIVE_DEFINITIONS.map((def) => ({
     id: def.id,
     category: def.category,
     targetTab: def.targetTab,
-    completed: def.isComplete(state),
+    completed: def.isComplete(state) || state.completedObjectiveIds.includes(def.id),
   }));
 }
 
-/** The id of the first not-yet-complete objective (progression order), or null if all are done. */
+/**
+ * The id of the first not-yet-complete objective (progression order), or null if all are done.
+ *
+ * Phase 13.5 (spec 1-1): derived from getObjectiveStatuses (sticky completion)
+ * rather than calling `def.isComplete` directly, so an already-completed
+ * objective whose live condition later flips false can never re-surface as
+ * "next objective".
+ */
 export function getNextObjectiveId(state: GameState): string | null {
-  const next = OBJECTIVE_DEFINITIONS.find((def) => !def.isComplete(state));
+  const statuses = getObjectiveStatuses(state);
+  const next = statuses.find((s) => !s.completed);
   return next?.id ?? null;
 }

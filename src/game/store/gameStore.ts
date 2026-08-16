@@ -11,6 +11,7 @@ import { createEventSlice } from "./slices/eventSlice";
 import { createCompetitorsSlice } from "./slices/competitorsSlice";
 import { createDepartmentSlice } from "./slices/departmentSlice";
 import { createAnalyticsSlice } from "./slices/analyticsSlice";
+import { createEventSystemSlice } from "./slices/eventSystemSlice";
 import * as actions from "./actions";
 import { loadGame } from "../utils/save";
 
@@ -40,6 +41,7 @@ export const useGameStore = create<GameStore>()((set, get, api) => {
     ...createCompetitorsSlice(set, get, api),
     ...createDepartmentSlice(set, get, api),
     ...createAnalyticsSlice(set, get, api),
+    ...createEventSystemSlice(set, get, api),
   };
 
   const persisted = loadGame();
@@ -57,11 +59,13 @@ export const useGameStore = create<GameStore>()((set, get, api) => {
     buyCooling: (coolingId) => actions.buyCooling(get, set, coolingId),
     upgradeFacility: (facilityId) => actions.upgradeFacility(get, set, facilityId),
     upgradeFacilityInternal: (category) => actions.upgradeFacilityInternal(get, set, category),
+    downgradeFacility: () => actions.downgradeFacility(get, set),
     setComputeAllocation: (trainingComputeAllocation) =>
       actions.setComputeAllocation(get, set, trainingComputeAllocation),
 
     // --- Staff ---
     hireStaff: (role) => actions.hireStaff(get, set, role),
+    fireStaff: (role, count) => actions.fireStaff(get, set, role, count),
     assignStaffToDepartment: (role, department, delta) => actions.assignStaffToDepartment(get, set, role, department, delta),
 
     // --- Tech ---

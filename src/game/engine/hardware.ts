@@ -21,7 +21,18 @@ export type GpuAggregate = {
   heatGeneration: number;
 };
 
-/** Sum GPU stats from owned instances (spec 7, tick step 2). Unknown specIds are skipped defensively. */
+/**
+ * Sum GPU stats from owned instances (spec 7, tick step 2). Unknown specIds
+ * are skipped defensively.
+ *
+ * Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-7): gpuPowerUsage
+ * now applies BALANCE.gpuPowerUsageMultiplier (default 1.25) on top of each
+ * GPU's data/gpus.ts powerUsage - a light, uniform tightening (spec: "今回は
+ * 軽めの調整でよいです") rather than reworking the per-tier data table, so
+ * relative GPU-to-GPU balance is unchanged and existing saves (which only
+ * ever store specId/instanceId per GPU, never a cached power value) keep
+ * working with zero migration needed.
+ */
 export function aggregateGpuStats(ownedGpus: OwnedGpu[]): GpuAggregate {
   return ownedGpus.reduce<GpuAggregate>(
     (acc, owned) => {
@@ -30,7 +41,7 @@ export function aggregateGpuStats(ownedGpus: OwnedGpu[]): GpuAggregate {
       return {
         totalCompute: acc.totalCompute + spec.compute,
         vram: acc.vram + spec.vram,
-        gpuPowerUsage: acc.gpuPowerUsage + spec.powerUsage,
+        gpuPowerUsage: acc.gpuPowerUsage + spec.powerUsage * BALANCE.gpuPowerUsageMultiplier,
         heatGeneration: acc.heatGeneration + spec.heatGeneration,
       };
     },
@@ -62,10 +73,23 @@ export function aggregateCoolingStats(ownedCooling: OwnedCooling[]): CoolingAggr
  * Total power draw (spec 10.1). Per clarification 9, powerUsage does NOT
  * change with thermal throttling - hardware keeps drawing full power even
  * while compute output is degraded. It only changes when owned GPUs/cooling
- * actually change (purchase, or meltdown destruction on a later tick).
+ * actually change (purchase, or meltdown destruction on a later tick) - or,
+ * as of Phase 13.5, with inference load (see below).
+ *
+ * Phase 13.5 "Human Playtest Critical Fix Sprint" (spec 1-7): `inferenceLoadPercent`
+ * (0-100, defaults to 0 for every existing call site that doesn't pass it)
+ * adds up to BALANCE.powerUsageInferenceLoadFactor (default 0.15 = +15%) on
+ * top of the base hardware draw, scaling linearly with load - "inference
+ * load slightly affects power usage" per the spec's option list. Deliberately
+ * uses the PREVIOUS tick's inferenceLoadPercent (see engine/tick.ts's Step 3
+ * call site) rather than this tick's, since this function runs before
+ * inference load itself is computed for the current tick - avoids a
+ * same-tick circular dependency without needing a two-pass tick.
  */
-export function calculatePowerUsage(gpuPowerUsage: number, coolingPowerUsage: number): number {
-  return gpuPowerUsage + coolingPowerUsage;
+export function calculatePowerUsage(gpuPowerUsage: number, coolingPowerUsage: number, inferenceLoadPercent = 0): number {
+  const base = gpuPowerUsage + coolingPowerUsage;
+  const loadFraction = Math.max(0, Math.min(100, inferenceLoadPercent)) / 100;
+  return base * (1 + loadFraction * BALANCE.powerUsageInferenceLoadFactor);
 }
 
 /** Infra Ops cooling bonus (spec 10.3). */
